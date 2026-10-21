@@ -8,7 +8,8 @@ imports, installs them on request, starts the bridge and opens the setup page.
 voice daemon, the watchdog, log rolling -- but it expects a machine that has
 already been set up. This is for the first five minutes.
 
-    python start.py              # start, and open the setup page
+    python start.py              # start, in its own window
+    python start.py --tab        # in an ordinary browser tab instead
     python start.py --port 8200   # somewhere else
     python start.py --no-browser  # headless, or over SSH
     python start.py --check       # say what is missing and stop
@@ -18,6 +19,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -33,6 +35,50 @@ NEEDED = [("fastapi", "fastapi"), ("uvicorn", "uvicorn"),
           ("psutil", "psutil"), ("requests", "requests")]
 
 MIN_PYTHON = (3, 10)
+
+# Chromium's --app= gives a plain window: no address bar, no tabs, its own
+# taskbar button and its own icon. It is the difference between "a localhost
+# page I have to keep finding" and something that behaves like an application.
+# Edge ships with Windows, so the first entry nearly always exists.
+APP_BROWSERS = [
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+]
+
+
+def app_browser() -> str | None:
+    """A Chromium that can open a bare window, or None."""
+    for path in APP_BROWSERS:
+        if Path(path).exists():
+            return path
+    return shutil.which("chrome") or shutil.which("chromium") \
+        or shutil.which("msedge")
+
+
+def open_as_app(url: str) -> bool:
+    """Open `url` as its own window. False if no suitable browser was found.
+
+    Each install gets its own profile directory, so the window does not
+    inherit the user's tabs, extensions or session, and closing it does not
+    close their browsing.
+    """
+    exe = app_browser()
+    if not exe:
+        return False
+    profile = Path.home() / ".config" / "jarvis" / "window"
+    try:
+        profile.mkdir(parents=True, exist_ok=True)
+        subprocess.Popen([exe, "--app=" + url,
+                          "--user-data-dir=" + str(profile),
+                          "--no-first-run", "--no-default-browser-check"])
+        return True
+    except OSError:
+        return False
 
 
 def missing() -> list[str]:
@@ -59,6 +105,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Start Jarvis.")
     ap.add_argument("--port", type=int, default=8100)
     ap.add_argument("--no-browser", action="store_true")
+    ap.add_argument("--tab", action="store_true",
+                    help="open in an ordinary browser tab, not its own window")
     ap.add_argument("--check", action="store_true",
                     help="report what is missing and exit")
     args = ap.parse_args()
@@ -116,7 +164,8 @@ def main() -> int:
         try:
             proc.wait(timeout=1.5)
         except subprocess.TimeoutExpired:
-            webbrowser.open(url)
+            if args.tab or not open_as_app(url):
+                webbrowser.open(url)
         else:
             print("The bridge exited immediately. Its reason is above.")
             return proc.returncode or 1

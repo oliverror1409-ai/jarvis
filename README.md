@@ -61,6 +61,25 @@ Type in the box at the bottom and press Enter. Replies arrive in the feed.
 The left half is the face; the right half is the conversation, the machine
 monitor and the settings.
 
+It opens in **its own window** -- no address bar, no tabs, its own taskbar
+icon -- rather than as a browser tab, using Edge or Chrome in app mode. It
+gets a separate browser profile, so it never touches your tabs, extensions or
+session, and closing it closes nothing else. `python start.py --tab` forces an
+ordinary tab instead, and if no Chromium is installed it falls back to one.
+
+### A desktop shortcut
+
+So starting it is a double-click and not a command:
+
+```
+powershell -ExecutionPolicy Bypass -File make-shortcut.ps1
+```
+
+That puts **Jarvis** on your desktop with the right icon. Double-click it and
+the bridge starts and the window opens; the small console window it leaves
+behind is how you stop it. `-Remove` takes the shortcut away again, and
+`-Port 8200` points it somewhere else.
+
 **Without the voice daemon this is a text assistant**, and the HUD says so in
 the bar across the top. Speech in (Whisper), speech out (Kokoro), the wake
 word and the desktop tools all belong to a separate component that is not in
@@ -162,6 +181,7 @@ is not a fix; assume anything pushed was scraped within the minute.
 | `avatar/ui.html` | The HUD: conversation, machine state, settings |
 | `setup/` | The setup page and the catalogue of integrations |
 | `scripts/check-secrets.py` | Refuses to publish a credential |
+| `make-shortcut.ps1` | Puts Jarvis on the desktop with its icon |
 | `tests/` | Runnable checks, including the two no-Claude ones above |
 | `restart-jarvis.ps1` | Full restart of bridge, backend, daemon, UI — needs a set-up machine |
 | `services/` | Optional third-party pieces, each its own download |
