@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>JARVIS</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #05070d; overflow: hidden; }
+  #status {
+    position: fixed; bottom: 18px; left: 0; right: 0; text-align: center;
+    font-family: 'Segoe UI', sans-serif; font-size: 14px; letter-spacing: 4px;
+    color: #d4a017; text-transform: uppercase; opacity: 0.85;
+  }
+  #ring {
+    position: fixed; bottom: 44px; left: 50%; width: 8px; height: 8px;
+    border-radius: 50%; background: #2b3242; transform: translateX(-50%);
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+  #ring.on { background: #ffb020; box-shadow: 0 0 14px 4px rgba(255,176,32,0.55); }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="ring"></div>
+<div id="status">Jarvis</div>
+<div id="debug" style="position:fixed;top:8px;left:8px;font:11px monospace;color:#39435c;"></div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05070d);
+const camera = new THREE.PerspectiveCamera(28, innerWidth / innerHeight, 0.05, 50);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const key = new THREE.DirectionalLight(0xfff2dd, 1.6); key.position.set(0.6, 1.2, 1.4); scene.add(key);
+const rim = new THREE.DirectionalLight(0x88aaff, 0.8); rim.position.set(-1.2, 0.6, -1.0); scene.add(rim);
+
+// Morph targets discovered by fuzzy name match — covers Ready Player Me,
+// ARKit, Oculus viseme, and assorted export conventions.
+const mouthTargets = [], blinkTargets = [];
+let headBone = null, modelRoot = null;
+
+new GLTFLoader().load('/avatar/model.glb', (gltf) => {
+  modelRoot = gltf.scene;
+  scene.add(modelRoot);
+
+  const armBones = [];
+  modelRoot.traverse((o) => {
+    if (o.isBone) {
+      if (!headBone && /head/i.test(o.name)) headBone = o;
+      if (/(left|right)(upper)?arm$/i.test(o.name.replace(/^mixamorig:?/i, ''))) armBones.push(o);
+    }
+    if (o.morphTargetDictionary && o.morphTargetInfluences) {
+      for (const key of Object.keys(o.morphTargetDictionary)) {
+        if (/jaw.?open|mouth.?open|viseme_?(aa|o|e|ah)/i.test(key))
+          mouthTargets.push({ mesh: o, idx: o.morphTargetDictionary[key], name: key });
+        else if (/blink|eyes.?closed/i.test(key))
+          blinkTargets.push({ mesh: o, idx: o.morphTargetDictionary[key] });
+      }
+    }
+  });
+
+  // Kill the T-pose: drop the upper arms to the sides.
+  for (const b of armBones) {
+    const left = /left/i.test(b.name);
+    b.rotation.z += left ? 1.15 : -1.15;
+  }
+
+  // Frame the head. Prefer the actual head bone's world position; fall back
+  // to a bounding-box heuristic for models without a skeleton.
+  modelRoot.updateWorldMatrix(true, true);
+  let focus, dist;
+  if (headBone) {
+    focus = headBone.getWorldPosition(new THREE.Vector3());
+    focus.y += 0.04;
+    dist = 0.7;
+  } else {
+    const box = new THREE.Box3().setFromObject(modelRoot);
+    const size = box.getSize(new THREE.Vector3());
+    focus = new THREE.Vector3(0, size.y > 1.0 ? box.max.y - size.y * 0.09 : box.getCenter(new THREE.Vector3()).y, 0);
+    dist = Math.max(size.x, size.y * 0.25) * 2.2 + 0.25;
+  }
+  camera.position.set(focus.x, focus.y, focus.z + dist);
+  camera.lookAt(focus);
+
+  const dbg = document.getElementById('debug');
+  dbg.textContent = `mouth: ${mouthTargets.length ? mouthTargets.map(t => t.name).join(', ') : 'NONE'} · blink: ${blinkTargets.length} · head: ${headBone ? headBone.name : 'none'} · arms: ${armBones.length}`;
+});
+
+// Poll the daemon's speaking state.
+let speaking = false, connected = false;
+const ring = document.getElementById('ring');
+const status = document.getElementById('status');
+async function poll() {
+  try {
+    const r = await fetch('http://127.0.0.1:8123/face-state', { cache: 'no-store' });
+    speaking = (await r.json()).speaking; connected = true;
+  } catch { speaking = false; connected = false; }
+  ring.className = speaking ? 'on' : '';
+  status.textContent = connected ? (speaking ? 'Speaking' : 'Listening') : 'Offline';
+}
+setInterval(poll, 250); poll();
+
+// Animation: mouth flaps while speaking, blinks and sway while idle.
+let blinkAt = performance.now() + 2500, blinkPhase = 0;
+function animate(t) {
+  requestAnimationFrame(animate);
+  const s = t / 1000;
+
+  let mouth = 0;
+  if (speaking) {
+    // Pseudo-speech: layered sines with noise reads as natural chatter.
+    mouth = Math.max(0, 0.35 + 0.3 * Math.sin(s * 11) + 0.25 * Math.sin(s * 17 + 1.3) + 0.15 * (Math.random() - 0.5));
+  }
+  for (const m of mouthTargets)
+    m.mesh.morphTargetInfluences[m.idx] += (mouth - m.mesh.morphTargetInfluences[m.idx]) * 0.5;
+
+  if (t > blinkAt) { blinkPhase = 1; blinkAt = t + 1800 + Math.random() * 3200; }
+  if (blinkPhase > 0) {
+    blinkPhase = Math.max(0, blinkPhase - 0.12);
+    const v = Math.sin((1 - blinkPhase) * Math.PI);
+    for (const b of blinkTargets) b.mesh.morphTargetInfluences[b.idx] = v;
+  }
+
+  if (headBone) {
+    headBone.rotation.y = Math.sin(s * 0.4) * 0.05 + (speaking ? Math.sin(s * 2.1) * 0.03 : 0);
+    headBone.rotation.x = Math.sin(s * 0.53) * 0.025 + (speaking ? Math.sin(s * 3.3) * 0.02 : 0);
+  } else if (modelRoot) {
+    modelRoot.rotation.y = Math.sin(s * 0.4) * 0.03;
+  }
+
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

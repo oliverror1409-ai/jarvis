@@ -1,0 +1,191 @@
+{
+  "_comment": [
+    "What a new person can turn on, and what each thing costs them to set up.",
+    "",
+    "Every entry here was read off this machine rather than imagined: the",
+    "config keys exist in ~/.config/jarvis/config.json, the services exist in",
+    "services/, and each 'get' URL is the page that actually issues the key.",
+    "",
+    "`secret` names the field a key lands in. The setup page NEVER reads a",
+    "secret back out -- it only ever learns whether one is set. Keys are",
+    "written to ~/.config/jarvis/, outside the repository, so a public clone",
+    "carries the catalogue and none of the credentials."
+  ],
+  "version": 1,
+  "groups": [
+    {
+      "id": "core",
+      "title": "The core",
+      "blurb": "Jarvis runs without any of the rest. These are the parts that make it answer at all.",
+      "items": [
+        {
+          "id": "bridge",
+          "name": "Claude bridge",
+          "what": "Routes Jarvis through your own Claude subscription instead of a metered API key.",
+          "needs": "login",
+          "cost": "Included with a Claude subscription",
+          "verify": "http://127.0.0.1:8100/health",
+          "command": "claude login",
+          "get": "https://claude.ai/login",
+          "default": true,
+          "local": true
+        },
+        {
+          "id": "whisper",
+          "name": "Whisper",
+          "what": "Turns your speech into text, on your own GPU. Nothing leaves the machine.",
+          "needs": "gpu",
+          "cost": "Free. Wants an NVIDIA card; falls back to CPU and gets slower.",
+          "config": { "whisper_model": "medium", "whisper_device": "cuda" },
+          "default": true,
+          "local": true
+        },
+        {
+          "id": "kokoro",
+          "name": "Kokoro voice",
+          "what": "Gives Jarvis a voice, locally. No per-word charge, no account.",
+          "needs": "service",
+          "cost": "Free",
+          "verify": "http://127.0.0.1:8880/health",
+          "default": true,
+          "local": true
+        },
+        {
+          "id": "ollama",
+          "name": "Ollama embeddings",
+          "what": "Local memory search, so what Jarvis remembers about you stays on disk.",
+          "needs": "service",
+          "cost": "Free",
+          "verify": "http://127.0.0.1:11434/api/tags",
+          "get": "https://ollama.com/download",
+          "config": { "embedding_provider": "ollama", "embedding_model": "nomic-embed-text" },
+          "default": true,
+          "local": true
+        }
+      ]
+    },
+    {
+      "id": "models",
+      "title": "Other models",
+      "blurb": "Only needed if you want a second opinion, or a fallback when Claude is rate-limited.",
+      "items": [
+        {
+          "id": "nim",
+          "name": "NVIDIA NIM",
+          "what": "A free tier of hosted open models. Jarvis falls back to these when Claude is unavailable.",
+          "needs": "key",
+          "secret": "nim-keys.json:keys",
+          "cost": "Free tier, no card required",
+          "get": "https://build.nvidia.com/explore/discover",
+          "hint": "Sign in, open any model, and copy the key from the Get API Key button.",
+          "default": false
+        },
+        {
+          "id": "openai",
+          "name": "OpenAI / Codex",
+          "what": "GPT models, and the Codex CLI for a second coding agent.",
+          "needs": "key",
+          "secret": "config.json:openai_api_key",
+          "cost": "Pay as you go",
+          "get": "https://platform.openai.com/api-keys",
+          "hint": "Create a secret key. It is shown once -- paste it straight in.",
+          "command": "npm i -g @openai/codex",
+          "default": false
+        },
+        {
+          "id": "gemini",
+          "name": "Google Gemini",
+          "what": "Gemini models, with a free tier that is generous for everyday use.",
+          "needs": "key",
+          "secret": "nim-keys.json:gemini_keys",
+          "cost": "Free tier available",
+          "get": "https://aistudio.google.com/apikey",
+          "default": false
+        }
+      ]
+    },
+    {
+      "id": "reach",
+      "title": "Reaching you",
+      "blurb": "How Jarvis gets hold of you when you are not at the machine.",
+      "items": [
+        {
+          "id": "telegram",
+          "name": "Telegram",
+          "what": "Talk to Jarvis from your phone. Only the chat you pair is ever obeyed.",
+          "needs": "key",
+          "secret": "config.json:telegram_bot_token",
+          "cost": "Free",
+          "get": "https://t.me/BotFather",
+          "hint": "Send /newbot to BotFather, then paste the token it gives you.",
+          "also": { "config.json:telegram_chat_id": "Your own chat id -- Jarvis obeys only this one." },
+          "default": false
+        },
+        {
+          "id": "sip",
+          "name": "Phone calls",
+          "what": "Jarvis can ring you, and you can ring it.",
+          "needs": "key",
+          "secret": "config.json:sip_password",
+          "cost": "Free SIP account",
+          "get": "https://www.linphone.org/en/freesip/",
+          "default": false
+        },
+        {
+          "id": "ntfy",
+          "name": "Push notifications",
+          "what": "A notification on your phone when a long job finishes.",
+          "needs": "service",
+          "cost": "Free, self-hosted or ntfy.sh",
+          "get": "https://ntfy.sh/",
+          "default": false
+        }
+      ]
+    },
+    {
+      "id": "extras",
+      "title": "Extras",
+      "blurb": "Bigger pieces. Each is a separate download, and none of them is required.",
+      "items": [
+        {
+          "id": "fooocus",
+          "name": "Fooocus",
+          "what": "Image generation on your own GPU.",
+          "needs": "service",
+          "cost": "Free. Wants a lot of VRAM.",
+          "verify": "http://127.0.0.1:7866",
+          "get": "https://github.com/lllyasviel/Fooocus",
+          "default": false
+        },
+        {
+          "id": "everything",
+          "name": "Everything search",
+          "what": "Instant filename search across every drive, so Jarvis can actually find your files.",
+          "needs": "service",
+          "cost": "Free, Windows only",
+          "get": "https://www.voidtools.com/downloads/",
+          "default": false
+        },
+        {
+          "id": "opennotebook",
+          "name": "Open Notebook",
+          "what": "A local research notebook Jarvis can read from and write to.",
+          "needs": "service",
+          "cost": "Free",
+          "get": "https://github.com/lfnovo/open-notebook",
+          "default": false
+        },
+        {
+          "id": "godseye",
+          "name": "God's Eye View",
+          "what": "A live globe: flights, ships, satellites, earthquakes. Works with no keys at all.",
+          "needs": "service",
+          "cost": "Free",
+          "verify": "http://127.0.0.1:4173",
+          "get": "https://github.com/bilawalsidhu/gods-eye-view",
+          "default": false
+        }
+      ]
+    }
+  ]
+}

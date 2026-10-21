@@ -1,0 +1,138 @@
+{
+  "_config_version": 3,
+  "agentic_max_turns": 12,
+  "barge_in_enabled": true,
+  "conversation_end_phrases": [
+    "thanks",
+    "thank you",
+    "thanks jarvis",
+    "thank you jarvis",
+    "cheers",
+    "that's all",
+    "thats all",
+    "that will be all",
+    "nothing else",
+    "goodbye",
+    "bye",
+    "dziÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢kujÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢",
+    "dzieki",
+    "dziÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ki"
+  ],
+  "conversation_idle_timeout_sec": 300,
+  "conversation_mode_enabled": true,
+  "embedding_base_url": "http://127.0.0.1:11434",
+  "embedding_model": "nomic-embed-text",
+  "embedding_provider": "ollama",
+  "endpoint_silence_ms": 1500,
+  "fast_model": "claude-subscription-fast",
+  "fastpath_patterns": {
+    "vscode_chat": [
+      "^(?:in )?(?:vs ?code|visual studio code|the editor)[\\s,]+(?:add|say|tell it|send|type)[\\s:,]+(.+)$",
+      "^(?:add|send|type) (?:this )?(?:to|in|into) (?:the )?(?:vs ?code|jarvis) chat[\\s:,]+(.+)$"
+    ],
+    "auto_prompt": [
+      "^auto[- ]?prompt[\\s:,]*(.*)$",
+      "^keep (?:it )?going(?: until (?:it'?s )?done)?$",
+      "^carry on (?:until (?:it'?s )?done|when (?:it'?s )?finished)$"
+    ],
+    "auto_prompt_stop": [
+      "^stop auto[- ]?prompt(?:ing)?$",
+      "^stop keeping going$"
+    ]
+  },
+  "heartbeat": {
+    "enabled": true,
+    "quiet_hours": {
+      "enabled": true,
+      "start": "23:00",
+      "end": "08:00"
+    },
+    "checks": [
+      {
+        "id": "claude_week_early",
+        "type": "http_threshold",
+        "enabled": true,
+        "interval_sec": 1800,
+        "severity": "notice",
+        "urgent": false,
+        "url": "http://127.0.0.1:8100/usage",
+        "field": "week_utilization",
+        "above": 70,
+        "include_fields": [
+          "week_reset",
+          "session_utilization",
+          "plan_name"
+        ],
+        "message": "The weekly Claude window is at {value}% — worth pacing the heavy work."
+      },
+      {
+        "id": "claude_week_critical",
+        "type": "http_threshold",
+        "enabled": true,
+        "interval_sec": 900,
+        "severity": "interrupt",
+        "urgent": false,
+        "url": "http://127.0.0.1:8100/usage",
+        "field": "week_utilization",
+        "above": 90,
+        "include_fields": [
+          "week_reset",
+          "session_utilization"
+        ],
+        "message": "The weekly Claude window is at {value}% — replies will start moving to the free models."
+      }
+    ]
+  },
+  "hot_window_enabled": true,
+  "intent_judge_timeout_sec": 8,
+  "llm_api_key": "",
+  "llm_base_url": "http://127.0.0.1:8000/v1",
+  "llm_chat_model": "claude-subscription",
+  "llm_chat_timeout_sec": 180,
+  "llm_provider": "openai_compatible",
+  "local_files_extra_roots": [
+    "D:\\Oliver"
+  ],
+  "location_auto_detect": 0,
+  "location_city": "",
+  "location_country": "",
+  "location_enabled": 0,
+  "location_latitude": 0,
+  "location_longitude": 0,
+  "location_region": "",
+  "location_timezone": "",
+  "memory_enrichment_enabled": true,
+  "memory_enrichment_use_llm": false,
+  "ollama_embed_model": "nomic-embed-text",
+  "one_voice_for_all_languages": true,
+  "planner_enabled": false,
+  "scrapling_fallback_enabled": true,
+  "sip_call_to": "",
+  "sip_calling_enabled": true,
+  "sip_from": "",
+  "sip_password": "",
+  "stop_commands": [
+    "stop",
+    "quiet",
+    "shush",
+    "silence",
+    "enough",
+    "shut up",
+    "be quiet",
+    "stop talking",
+    "cancel",
+    "nevermind",
+    "never mind",
+    "thats enough",
+    "that's enough"
+  ],
+  "tool_selection_strategy": "keyword",
+  "tts_voice_by_language": {},
+  "tts_volume": 1.0,
+  "tune_enabled": false,
+  "voice_debug": true,
+  "whisper_compute_type": "float16",
+  "whisper_device": "cuda",
+  "whisper_model": "medium",
+  "_comment": "Copy to ~/.config/jarvis/config.json and fill in. Every key and every personal detail has been emptied. The setup page writes this file for you: python -m setup"
+}

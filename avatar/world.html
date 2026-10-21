@@ -1,0 +1,1084 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis Island</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0a1520; overflow: hidden;
+               font-family: "Segoe UI", system-ui, sans-serif; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  #hud { position: fixed; top: 18px; left: 22px; z-index: 4; pointer-events: none; }
+  #hud .t { color: #f0eee8; font-weight: 700; font-size: 19px; letter-spacing: .06em;
+            text-shadow: 0 1px 8px rgba(0,0,0,.55); }
+  #hud .s { color: #cfd8de; font-size: 12px; opacity: .8; margin-top: 2px;
+            text-shadow: 0 1px 6px rgba(0,0,0,.55); }
+  #clock { position: fixed; top: 18px; right: 22px; z-index: 4; text-align: right;
+           pointer-events: none; text-shadow: 0 1px 8px rgba(0,0,0,.55); }
+  #clock .h { color: #f0eee8; font-weight: 600; font-size: 16px; }
+  #clock .g { color: #cfd8de; font-size: 12px; opacity: .8; margin-top: 2px; }
+  #board { position: fixed; top: 64px; right: 22px; z-index: 4; pointer-events: none;
+           background: rgba(10,18,26,.72); border: 1px solid rgba(240,169,44,.28);
+           border-radius: 10px; padding: 10px 13px; min-width: 230px; max-width: 300px; }
+  #board .h { color: #f0a92c; font-size: 11px; letter-spacing: .18em; margin-bottom: 6px; }
+  #board .r { color: #e6ecef; font-size: 12.5px; line-height: 1.55; white-space: nowrap;
+              overflow: hidden; text-overflow: ellipsis; }
+  #board .r b { color: #7fd8e8; font-weight: 600; }
+  #board .r span { color: #9fb3c0; }
+  #ticker { position: fixed; left: 22px; bottom: 18px; z-index: 4; max-width: 460px;
+            pointer-events: none; }
+  #ticker div { color: #e6ecef; font-size: 12.5px; line-height: 1.5; opacity: .9;
+                text-shadow: 0 1px 6px rgba(0,0,0,.6); white-space: nowrap;
+                overflow: hidden; text-overflow: ellipsis; }
+  #ticker div .w { color: #f0a92c; }
+  #tip { position: fixed; pointer-events: none; z-index: 5; display: none;
+         background: rgba(10, 18, 26, .93); border: 1px solid rgba(240, 169, 44, .45);
+         border-radius: 10px; padding: 10px 13px; color: #e8ecef; font-size: 12.5px;
+         max-width: 300px; box-shadow: 0 8px 30px rgba(0,0,0,.5); line-height: 1.5; }
+  #tip .t { color: #f0a92c; font-weight: 600; font-size: 13.5px; }
+  #tip .d { color: #9fb3c0; font-size: 11.5px; margin-bottom: 6px; }
+  #tip .row { display: flex; justify-content: space-between; gap: 14px; }
+  #tip .row span:last-child { color: #7fd8e8; font-variant-numeric: tabular-nums; }
+  #lost { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 6;
+          display: none; background: rgba(120, 30, 30, .85); color: #ffd9d9;
+          padding: 6px 14px; border-radius: 8px; font-size: 12.5px; }
+  #helpBtn { position: fixed; right: 22px; bottom: 18px; z-index: 7; width: 38px; height: 38px;
+             border-radius: 50%; border: 1px solid rgba(240,169,44,.55); cursor: pointer;
+             background: rgba(10,18,26,.85); color: #f0a92c; font-size: 19px; font-weight: 700; }
+  #about { position: fixed; inset: 0; z-index: 8; display: none; align-items: center;
+           justify-content: center; background: rgba(4,8,14,.62); }
+  #about .card { background: rgba(12,20,28,.97); border: 1px solid rgba(240,169,44,.5);
+                 border-radius: 14px; padding: 26px 30px; max-width: 620px; max-height: 84vh;
+                 overflow-y: auto; color: #e8ecef; box-shadow: 0 18px 60px rgba(0,0,0,.6); }
+  #about h1 { margin: 0 0 4px; font-size: 20px; color: #f0a92c; letter-spacing: .04em; }
+  #about .lead { color: #cfd8de; font-size: 13.5px; line-height: 1.65; margin: 8px 0 14px; }
+  #about .lead b { color: #f0eee8; }
+  #about .g { display: grid; grid-template-columns: 14px 128px 1fr; gap: 8px 10px;
+              font-size: 12.8px; line-height: 1.5; align-items: baseline; }
+  #about .chip { width: 11px; height: 11px; border-radius: 3px; position: relative; top: 1px; }
+  #about .n { color: #f0eee8; font-weight: 600; white-space: nowrap; }
+  #about .e { color: #9fb3c0; }
+  #about .rules { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid rgba(240,169,44,.2);
+                  color: #9fb3c0; font-size: 12.8px; line-height: 1.7; }
+  #about .rules b { color: #7fd8e8; font-weight: 600; }
+  #about .close { margin-top: 16px; width: 100%; padding: 9px; border-radius: 9px; border: 0;
+                  background: #f0a92c; color: #14202a; font-weight: 700; font-size: 13.5px;
+                  cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><div class="t">JARVIS ISLAND</div>
+<div class="s">your PC, live, as a town · drag to orbit · scroll to zoom · press ? for what everything means</div></div>
+<div id="clock"><div class="h" id="ck">--:--</div><div class="g" id="gp"></div></div>
+<div id="board"><div class="h">WORKING ON RIGHT NOW</div><div id="jobs"></div></div>
+<div id="ticker"></div>
+<div id="tip"></div>
+<div id="lost">island lost contact with the bridge — showing the last thing it saw</div>
+<button id="helpBtn" title="what is this?">?</button>
+<div id="about"><div class="card">
+  <h1>JARVIS ISLAND</h1>
+  <div class="lead">This is <b>your computer, right now</b>, drawn as an island town.
+  Nothing here is decoration: every district is one part of the machine, every building
+  inside a district is <b>one real program running at this moment</b> — it appears when the
+  program starts, grows with the memory it takes, lights up while it burns CPU, and sinks
+  into the ground when it exits. The little workers are each district's crew: they wander
+  when their programs idle and <b>swing hammers at the exact building that is working
+  hardest</b>. Hover anything for its real numbers.</div>
+  <div class="g" id="aboutRows"></div>
+  <div class="rules">
+    <b>Windmill sails</b> spin at the node processes' CPU speed ·
+    <b>Lighthouse</b> is the graphics card — lamp and beam scale with GPU load ·
+    <b>Arcade neon</b> is on only while a game is actually running ·
+    <b>Chimney smoke</b> on the Villa means Jarvis is thinking right now ·
+    <b>Boats</b> at the pier: one per handful of open browser processes ·
+    <b>Rim glow</b> on a district brightens when it is busy ·
+    <b>Speech bubbles</b> over the Villa are Jarvis's real replies ·
+    <b>Sky, sun, moon and stars</b> follow this computer's actual clock ·
+    The <b>WORKING ON RIGHT NOW</b> board lists the heaviest jobs in plain words.
+  </div>
+  <button class="close" id="aboutClose">got it — show me the town</button>
+</div></div>
+<script src="/vendor/three.min.js"></script>
+<script src="/vendor/OrbitControls.js"></script>
+<script>
+"use strict";
+/* Jarvis Island, district edition.
+   Eight glowing hex platforms stand in the sea, one per real subsystem of
+   this machine, bridged to the Villa in the middle. Inside each district
+   EVERY tracked process is its own little structure: it appears when the
+   process starts, grows with its memory, lights up and gets hammered on
+   while it burns CPU, and vanishes when the process dies. Hover any of
+   them and it names itself. The sky runs on the actual clock. */
+
+/* ---------------- districts ---------------- */
+const DIST = [
+  { id: "villa",    name: "The Villa",    sub: "Jarvis himself — brain, voice, face",
+    x: 0, z: 0, r: 6.4, hue: 46,
+    fams: ["bridge","python","pythonw","jarvis","webview","kokoro","uv","uvicorn"] },
+  { id: "workshop", name: "The Workshop", sub: "Claude and the shells, building",
+    x: -16, z: 3, r: 5.6, hue: 14,
+    fams: ["claude","bash","cmd","powershell","pwsh","conhost","git","ssh","ffmpeg","ffprobe","realesrgan-ncnn-vulkan","yt-dlp"] },
+  { id: "codehall", name: "Code Hall",    sub: "the editors",
+    x: 16, z: -2, r: 5.2, hue: 208,
+    fams: ["vscode","code","cursor","devenv"] },
+  { id: "mills",    name: "Node Mills",   sub: "the node processes",
+    x: -10, z: -12, r: 5.0, hue: 92,
+    fams: ["node","npm","bun","deno","esbuild"] },
+  { id: "pier",     name: "Browser Pier", sub: "the browsers, moored at the edge",
+    x: 12, z: 11, r: 5.2, hue: 193,
+    fams: ["opera","chrome","msedge","chatgpt","chatgpt classic","cefsharp.browsersubprocess","firefox","brave","msedgewebview2"] },
+  { id: "archive",  name: "The Archive",  sub: "the databases",
+    x: -15, z: 12, r: 4.6, hue: 268,
+    fams: ["postgres","mysqld","redis-server","mongod","docker","com.docker.backend"] },
+  { id: "arcade",   name: "The Arcade",   sub: "lit only while a game runs",
+    x: 9, z: -13, r: 4.6, hue: 320,
+    fams: ["roblox","robloxplayerbeta","steam","steamwebhelper","eosoverlayrenderer-win64-shipping","epicgameslauncher"] },
+  { id: "town",     name: "The Old Town", sub: "Windows itself — services, drivers, audio",
+    x: -2, z: 16, r: 5.6, hue: 232, fams: [] },
+];
+const byId = {}; DIST.forEach(d => byId[d.id] = d);
+const famTo = {}; DIST.forEach(d => d.fams.forEach(f => famTo[f] = d.id));
+const LIGHT = { x: 26, z: -6 };   // the GPU lighthouse rock
+
+/* ---------------- live state ---------------- */
+const live = { ok: false, st: {}, nodes: [], links: [], gpu: null, inflight: 0, seq: 0 };
+DIST.forEach(d => live.st[d.id] = { count: 0, cpu: 0, mem: 0 });
+const lostEl = document.getElementById("lost");
+const ticker = document.getElementById("ticker");
+const notes = [];
+function note(who, text) {
+  // Was note(html) with the caller concatenating markup, and one of those
+  // callers interpolated a label that arrives over /event from anything that
+  // can reach this bridge -- a script tag in a process name reached the DOM.
+  // Name and sentence now arrive separately and are set as text.
+  notes.push({ who: String(who || ""), text: String(text || "") });
+  if (notes.length > 4) notes.shift();
+  ticker.replaceChildren(...notes.map(n => {
+    const d = document.createElement("div");
+    if (n.who) {
+      const w = document.createElement("span");
+      w.className = "w";
+      w.textContent = n.who;
+      d.appendChild(w);
+      d.appendChild(document.createTextNode(" "));
+    }
+    d.appendChild(document.createTextNode(n.text));
+    return d;
+  }));
+}
+async function pollGraph() {
+  try {
+    const g = await (await fetch("/pc-graph?limit=2000")).json();
+    const st = {}; DIST.forEach(d => st[d.id] = { count: 0, cpu: 0, mem: 0 });
+    const distOf = {};
+    for (const n of g.nodes || []) {
+      n.dist = famTo[(n.group || "").toLowerCase()] || "town";
+      distOf[n.key] = n.dist;
+      const b = st[n.dist]; b.count++; b.cpu += n.cpu || 0; b.mem += n.mem_mb || 0;
+    }
+    // Which districts are genuinely talking to each other right now: the
+    // open sockets between processes of different families. Couriers walk
+    // those routes over the bridges.
+    const links = new Set();
+    for (const e of g.edges || []) {
+      if (e[2] !== 1) continue;
+      const a = distOf[e[0]], b = distOf[e[1]];
+      if (!a || !b || a === b) continue;
+      links.add([a, b].sort().join(">"));
+      if (links.size >= 6) break;
+    }
+    live.links = [...links].map(s => s.split(">"));
+    for (const d of DIST) {
+      const was = live.st[d.id], now = st[d.id];
+      if (was && now.cpu > 30 && was.cpu <= 30) {
+        const top = (g.nodes || []).filter(n => n.dist === d.id).sort((a, b) => (b.cpu || 0) - (a.cpu || 0))[0];
+        if (top) note(d.name, `got busy — ${top.label} at ${(top.cpu || 0).toFixed(0)}% cpu`);
+      }
+      if (was && was.cpu > 30 && now.cpu <= 10) note(d.name, "fell quiet");
+    }
+    live.nodes = g.nodes || []; live.st = st; live.ok = true; lostEl.style.display = "none";
+  } catch (e) { live.ok = false; lostEl.style.display = "block"; }
+}
+async function pollStats() {
+  try { const s = await (await fetch("/stats")).json();
+        live.gpu = s.gpu || null; live.inflight = s.inflight || 0; } catch (e) {}
+}
+async function pollEvents() {
+  try {
+    const e = await (await fetch("/events?after=" + live.seq)).json();
+    for (const ev of e.events || []) {
+      if (ev.seq <= live.seq) continue;
+      live.seq = ev.seq;
+      let text = (ev.label || "").split("\n").pop().replace(/^Assistant:\s*/, "").trim();
+      if (text.length > 90) text = text.slice(0, 87) + "…";
+      if (text) { say(text); note("Jarvis", "— " + text); }
+    }
+  } catch (e) {}
+}
+pollGraph(); pollStats(); pollEvents();
+setInterval(pollGraph, 4000); setInterval(pollStats, 4000); setInterval(pollEvents, 2600);
+
+/* ---------------- clock ---------------- */
+const FORCE_H = new URLSearchParams(location.search).get("h");
+function nowH() {
+  if (FORCE_H !== null) return parseFloat(FORCE_H);
+  const d = new Date(); return d.getHours() + d.getMinutes() / 60;
+}
+function smooth(t) { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); }
+function daylight() { const h = nowH(); return Math.min(smooth((h - 5.7) / 1.9), smooth((20.7 - h) / 1.9)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+/* ---------------- scene ---------------- */
+const canvas = document.getElementById("c");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 900);
+camera.position.set(24, 22, 32);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.target.set(0, 0, 2);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.minDistance = 8; controls.maxDistance = 110;
+controls.maxPolarAngle = 1.42;
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", resize); resize();
+
+const hemi = new THREE.HemisphereLight(0xbfd8e6, 0x4a3f2e, 0.75);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffe0b0, 1.1);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -42; sun.shadow.camera.right = 42;
+sun.shadow.camera.top = 42; sun.shadow.camera.bottom = -42;
+sun.shadow.camera.far = 200; sun.shadow.bias = -0.0004;
+scene.add(sun); scene.add(sun.target);
+const moon = new THREE.DirectionalLight(0x8fa8cc, 0.0);
+scene.add(moon);
+
+/* sky dome */
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { top: { value: new THREE.Color(0x7fbcdc) }, bot: { value: new THREE.Color(0xd6ebea) } },
+  vertexShader: "varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+  fragmentShader: "varying vec3 vP; uniform vec3 top; uniform vec3 bot; void main(){ float h = clamp(normalize(vP).y * 0.5 + 0.5, 0.0, 1.0); gl_FragColor = vec4(mix(bot, top, pow(h, 0.65)), 1.0); }",
+});
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(520, 24, 12), skyMat));
+const skyTopDay = new THREE.Color(0x6fb4da), skyTopNight = new THREE.Color(0x050c1b);
+const skyBotDay = new THREE.Color(0xd8ece9), skyBotNight = new THREE.Color(0x152539);
+const dawnTint = new THREE.Color(0xe89a5e);
+
+/* sea */
+const seaGeo = new THREE.CircleGeometry(340, 72);
+const seaMat = new THREE.MeshStandardMaterial({ color: 0x1c6f80, roughness: .55, metalness: .08 });
+const sea = new THREE.Mesh(seaGeo, seaMat);
+sea.rotation.x = -Math.PI / 2; sea.position.y = -0.9; sea.receiveShadow = true;
+scene.add(sea);
+
+/* stars */
+const starGeo = new THREE.BufferGeometry();
+{
+  const pts = [];
+  for (let i = 0; i < 520; i++) {
+    const a = Math.random() * Math.PI * 2, b = Math.acos(2 * Math.random() - 1) * .5, r = 300;
+    pts.push(r * Math.sin(b) * Math.cos(a), r * Math.cos(b) + 10, r * Math.sin(b) * Math.sin(a));
+  }
+  starGeo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+}
+const starMat = new THREE.PointsMaterial({ color: 0xdfe8f6, size: 0.8, transparent: true, opacity: 0 });
+scene.add(new THREE.Points(starGeo, starMat));
+const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0xffd985, fog: false }));
+scene.add(sunDisc);
+const moonDisc = new THREE.Mesh(new THREE.SphereGeometry(2.6, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0xdde6f4, transparent: true, fog: false }));
+scene.add(moonDisc);
+
+scene.fog = new THREE.Fog(0x9fd0e8, 120, 380);
+const fogCol = new THREE.Color();
+
+/* ---------------- platform texture (dark slate with a grid) ---------------- */
+function slateTexture(hue) {
+  const cv2 = document.createElement("canvas"); cv2.width = cv2.height = 256;
+  const g = cv2.getContext("2d");
+  g.fillStyle = "#2a323e"; g.fillRect(0, 0, 256, 256);
+  g.strokeStyle = "rgba(255,255,255,.045)"; g.lineWidth = 1;
+  for (let i = 0; i <= 256; i += 22) {
+    g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 256); g.stroke();
+    g.beginPath(); g.moveTo(0, i); g.lineTo(256, i); g.stroke();
+  }
+  g.fillStyle = `hsla(${hue}, 60%, 60%, .05)`; g.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(cv2);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2, 2);
+  return tex;
+}
+
+/* ---------------- districts: platforms, rims, bridges ---------------- */
+const world = new THREE.Group(); scene.add(world);
+const matRock = new THREE.MeshStandardMaterial({ color: 0x5c554e, roughness: 1 });
+const matWood = new THREE.MeshStandardMaterial({ color: 0x8c6c4c, roughness: .95 });
+const matWall = new THREE.MeshStandardMaterial({ color: 0xf2ede2, roughness: .8 });
+const matRoof = new THREE.MeshStandardMaterial({ color: 0xc66b4a, roughness: .8 });
+const matDome = new THREE.MeshStandardMaterial({ color: 0x2f6f7e, roughness: .55 });
+const matDark = new THREE.MeshStandardMaterial({ color: 0x4d4658, roughness: .85 });
+const rimMats = {};
+const hitPlatforms = [];
+
+function buildDistrict(d) {
+  const g = new THREE.Group(); g.position.set(d.x, 0, d.z); world.add(g);
+  d.g = g;
+  // stone base under the platform
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(d.r * .92, d.r * .7, 2.2, 6), matRock);
+  base.rotation.y = Math.PI / 6; base.position.y = -1.35; base.castShadow = true; g.add(base);
+  // the platform itself
+  const plat = new THREE.Mesh(new THREE.CylinderGeometry(d.r, d.r, .5, 6),
+    new THREE.MeshStandardMaterial({ map: slateTexture(d.hue), roughness: .9 }));
+  plat.rotation.y = Math.PI / 6; plat.position.y = -0.25;
+  plat.receiveShadow = true; g.add(plat);
+  plat.userData.district = d.id; hitPlatforms.push(plat);
+  // glowing rim — the reel's neon hex border
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(d.r * .985, .09, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0x101820, emissive: new THREE.Color(`hsl(${d.hue}, 85%, 58%)`),
+                                     emissiveIntensity: .8, roughness: .5 }));
+  rim.rotation.x = Math.PI / 2; rim.rotation.z = Math.PI / 6; rim.position.y = 0.02;
+  g.add(rim);
+  rimMats[d.id] = rim.material;
+  // name label
+  const l = makeLabel();
+  l.sp.position.set(0, 5.6, 0); g.add(l.sp); d.label = l;
+}
+
+function buildBridge(a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz);
+  const span = len - a.r - b.r + 1.2;
+  if (span <= 0) return;
+  const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(span, .14, 1.3), matWood);
+  deck.position.set(mid.x, -0.05, mid.z);
+  deck.rotation.y = -Math.atan2(dz, dx);
+  deck.castShadow = true; deck.receiveShadow = true; world.add(deck);
+  const n = Math.max(2, Math.floor(span / 2.2));
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, px = a.x + dx * (0.5 - span / len / 2 + t * span / len),
+          pz = a.z + dz * (0.5 - span / len / 2 + t * span / len);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, 1.0, 6), matWood);
+    post.position.set(px, -0.55, pz); world.add(post);
+  }
+}
+
+/* ---------------- label sprites ---------------- */
+function makeLabel() {
+  const cv2 = document.createElement("canvas"); cv2.width = 512; cv2.height = 160;
+  const tex = new THREE.CanvasTexture(cv2); tex.anisotropy = 4;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  sp.scale.set(4.6, 1.44, 1);
+  return { sp, cv: cv2, tex };
+}
+function drawLabel(l, title, line2, busy) {
+  const g = l.cv.getContext("2d"); g.clearRect(0, 0, 512, 160);
+  g.font = "600 44px 'Segoe UI', sans-serif";
+  const tw = Math.max(g.measureText(title).width, line2 ? 210 : 0) + 56;
+  const w = Math.min(500, Math.max(220, tw)), x0 = (512 - w) / 2;
+  g.fillStyle = "rgba(10,18,26,.82)";
+  g.strokeStyle = busy ? "rgba(240,169,44,.9)" : "rgba(240,169,44,.35)";
+  g.lineWidth = 3;
+  g.beginPath(); g.roundRect(x0, 14, w, line2 ? 128 : 84, 18); g.fill(); g.stroke();
+  g.fillStyle = "#f0eee8"; g.textAlign = "center";
+  g.fillText(title, 256, 70);
+  if (line2) {
+    g.font = "400 33px 'Segoe UI', sans-serif";
+    g.fillStyle = busy ? "#f0a92c" : "#9fb3c0";
+    g.fillText(line2, 256, 116);
+  }
+  l.tex.needsUpdate = true;
+}
+
+/* ---------------- landmark builds ---------------- */
+const windowMeshes = [];
+const winMat = new THREE.MeshStandardMaterial({ color: 0x223540, emissive: 0xffc95e,
+                                                emissiveIntensity: 0, roughness: .6 });
+function addWindow(g, w, h, x, y, z, ry) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.06), winMat);
+  m.position.set(x, y, z); if (ry) m.rotation.y = ry;
+  g.add(m);
+}
+function box(g, mat, w, h, dd, x, y, z, ry) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, dd), mat);
+  m.position.set(x, y, z); if (ry) m.rotation.y = ry;
+  m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+}
+function roofPrism(g, w, h, dd, x, y, z, ry) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-w / 2 - .08, 0); shape.lineTo(w / 2 + .08, 0); shape.lineTo(0, h); shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: dd + .16, bevelEnabled: false });
+  geo.translate(0, 0, -(dd + .16) / 2);
+  const m = new THREE.Mesh(geo, matRoof);
+  m.position.set(x, y, z); if (ry) m.rotation.y = ry;
+  m.castShadow = true; g.add(m); return m;
+}
+let millHead = null, lightLamp = null, lightBeam = null, arcadeSign = null, arcadeLight = null;
+function buildLandmarks() {
+  // Villa palace at the centre of its plot
+  const v = byId.villa.g, palace = new THREE.Group(); v.add(palace);
+  box(palace, matWall, 2.6, 1.5, 1.7, -1.5, .75, -1.2);
+  roofPrism(palace, 1.7, .8, 2.6, -1.5, 1.5, -1.2, Math.PI / 2);
+  box(palace, matWall, 2.2, 1.3, 1.6, 1.6, .65, -1.0);
+  roofPrism(palace, 1.6, .7, 2.2, 1.6, 1.3, -1.0, Math.PI / 2);
+  const tower = box(palace, matWall, 1.2, 2.9, 1.2, 0, 1.45, -1.4);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(.76, 20, 14, 0, Math.PI * 2, 0, Math.PI / 2), matDome);
+  dome.position.set(0, 2.9, -1.4); dome.castShadow = true; palace.add(dome);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(.15, 10, 10),
+    new THREE.MeshBasicMaterial({ color: 0xf0a92c }));
+  lamp.position.set(0, 3.75, -1.4); palace.add(lamp);
+  addWindow(palace, .4, .55, -2.0, .8, -0.33); addWindow(palace, .4, .55, -1.0, .8, -0.33);
+  addWindow(palace, .4, .55, 1.2, .7, -0.18); addWindow(palace, .4, .55, 2.0, .7, -0.18);
+  addWindow(palace, .36, .62, 0, 1.8, -0.79);
+  // pool in front of the palace — this coast builds pools
+  const rimP = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, .12, 24), matWall);
+  rimP.position.set(1.6, .06, 2.4); v.add(rimP);
+  const water = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, .1, 24),
+    new THREE.MeshStandardMaterial({ color: 0x3fb6cc, roughness: .2, emissive: 0x1c6f80, emissiveIntensity: .25 }));
+  water.position.set(1.6, .1, 2.4); v.add(water);
+  // palms
+  for (const [px, pz] of [[-2.6, 2.2], [-3.4, 0.6], [3.6, 1.0]]) palm(v, px, pz);
+
+  // Mill on the node plot
+  const m = byId.mills.g;
+  const towerG = new THREE.Mesh(new THREE.CylinderGeometry(.55, .85, 2.8, 10), matWall);
+  towerG.position.set(0, 1.4, -2.4); towerG.castShadow = true; m.add(towerG);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(.64, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), matRoof);
+  cap.position.set(0, 2.8, -2.4); m.add(cap);
+  millHead = new THREE.Group(); millHead.position.set(0, 2.75, -1.75); m.add(millHead);
+  for (let i = 0; i < 4; i++) {
+    const arm = new THREE.Group(); arm.rotation.z = i * Math.PI / 2; millHead.add(arm);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(.16, 2.2, .05), matWood);
+    blade.position.y = 1.1; arm.add(blade);
+    const sail = new THREE.Mesh(new THREE.BoxGeometry(.52, 1.3, .03),
+      new THREE.MeshStandardMaterial({ color: 0xeae2d0, roughness: .9, side: THREE.DoubleSide }));
+    sail.position.set(.31, 1.4, 0); arm.add(sail);
+  }
+
+  // Pier deck + boats off the browser plot
+  const p = byId.pier.g;
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(1.2, .14, 6.4), matWood);
+  deck.position.set(2.2, .12, 5.6); deck.rotation.y = -.5; deck.castShadow = true; p.add(deck);
+  byId.pier.boats = new THREE.Group(); p.add(byId.pier.boats);
+
+  // Arcade sign on its plot
+  const a = byId.arcade.g;
+  const hall = box(a, matDark, 2.6, 1.5, 1.8, 0, .75, -2.2);
+  arcadeSign = new THREE.Mesh(new THREE.BoxGeometry(1.9, .45, .09),
+    new THREE.MeshStandardMaterial({ color: 0x1c1826, emissive: 0xff50b4, emissiveIntensity: 0 }));
+  arcadeSign.position.set(0, 1.95, -1.75); a.add(arcadeSign);
+  arcadeLight = new THREE.PointLight(0xff50b4, 0, 9); arcadeLight.position.set(0, 2.2, -1.4); a.add(arcadeLight);
+  addWindow(a, .5, .5, -.7, .75, -1.29); addWindow(a, .5, .5, 0, .75, -1.29); addWindow(a, .5, .5, .7, .75, -1.29);
+
+  // GPU lighthouse on its own rock
+  const lg = new THREE.Group(); lg.position.set(LIGHT.x, 0, LIGHT.z); world.add(lg);
+  const rock = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.6, 1.6, 7), matRock);
+  rock.position.y = -0.5; rock.castShadow = true; lg.add(rock);
+  for (let i = 0; i < 5; i++) {
+    const seg = new THREE.Mesh(new THREE.CylinderGeometry(.46 - i * .04, .5 - i * .04, .58, 12),
+      i % 2 ? matWall : new THREE.MeshStandardMaterial({ color: 0xc84a3a, roughness: .8 }));
+    seg.position.y = .6 + i * .58; seg.castShadow = true; lg.add(seg);
+  }
+  lightLamp = new THREE.Mesh(new THREE.SphereGeometry(.28, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffd66e, transparent: true, opacity: .35 }));
+  lightLamp.position.y = 3.7; lg.add(lightLamp);
+  const capL = new THREE.Mesh(new THREE.ConeGeometry(.44, .44, 12), matDark);
+  capL.position.y = 4.12; lg.add(capL);
+  lightBeam = new THREE.SpotLight(0xffe08c, 0, 80, .28, .5, 1.2);
+  lightBeam.position.set(0, 3.7, 0); lg.add(lightBeam); lg.add(lightBeam.target);
+  const gl = makeLabel(); gl.sp.position.set(0, 5.6, 0); lg.add(gl.sp);
+  byId.light = { id: "light", name: "GPU Lighthouse", sub: "its light is the graphics card working",
+                 label: gl, g: lg };
+  rock.userData.district = "light"; hitPlatforms.push(rock);
+}
+function palm(g, x, z) {
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.09, .13, 1.5, 7), matWood);
+  trunk.position.set(x, .75, z); trunk.rotation.z = .12; trunk.castShadow = true; g.add(trunk);
+  for (let i = 0; i < 5; i++) {
+    const leaf = new THREE.Mesh(new THREE.ConeGeometry(.16, 1.15, 5),
+      new THREE.MeshStandardMaterial({ color: 0x4d8f4f, roughness: .9 }));
+    const a = i / 5 * Math.PI * 2;
+    leaf.position.set(x + Math.cos(a) * .42 + .17, 1.62, z + Math.sin(a) * .42);
+    leaf.rotation.set(Math.sin(a), 0, Math.cos(a) + .35);
+    leaf.castShadow = true; g.add(leaf);
+  }
+}
+DIST.forEach(buildDistrict);
+DIST.slice(1).forEach(d => buildBridge(byId.villa, d));
+buildBridge(byId.codehall, { x: LIGHT.x, z: LIGHT.z, r: 2.2 });
+buildLandmarks();
+
+/* ---------------- structures: one per real process ---------------- */
+/* Inside a district, up to 10 slots arranged in two rings. The biggest
+   processes of that family occupy them: the structure's size follows the
+   process's memory, its light and hammering follow its CPU. */
+const structures = {};      // pid -> {g, mesh, glowMat, node, slot, born}
+const slotsUsed = {};       // district -> Set(slot index)
+DIST.forEach(d => slotsUsed[d.id] = new Set());
+function slotPos(d, i) {
+  // ring of 6 at r*0.55, ring of 4 at r*0.28, avoiding the landmark side
+  if (i < 6) { const a = i / 6 * Math.PI * 2 + .45; return [Math.cos(a) * d.r * .58, Math.sin(a) * d.r * .58]; }
+  const a = (i - 6) / 4 * Math.PI * 2 + 1.2; return [Math.cos(a) * d.r * .30, Math.sin(a) * d.r * .30];
+}
+const structHit = [];
+function structKind(pid, label) {
+  let h = 0; const s = String(label) + pid;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffff;
+  return h % 5;
+}
+function buildStructure(node, d, slot) {
+  const g = new THREE.Group();
+  const [sx, sz] = slotPos(d, slot);
+  g.position.set(sx, 0, sz);
+  d.g.add(g);
+  const hue = d.hue;
+  const bodyMatS = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(`hsl(${hue}, 46%, 62%)`), roughness: .75 });
+  const glowMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(`hsl(${hue}, 45%, 30%)`),
+    emissive: new THREE.Color(`hsl(${hue}, 90%, 55%)`), emissiveIntensity: .12, roughness: .5 });
+  const kind = structKind(node.pid, node.label);
+  const sc = Math.min(1.7, Math.max(.55, Math.cbrt((node.mem_mb || 40) / 60)));
+  let hit = null;
+  if (kind === 0) {          // dome hab
+    const domeS = new THREE.Mesh(new THREE.SphereGeometry(.62, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), bodyMatS);
+    domeS.position.y = .28; domeS.castShadow = true; g.add(domeS);
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(.66, .7, .3, 14), matDark);
+    ring.position.y = .15; g.add(ring);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(.26, .3, .06), glowMat);
+    door.position.set(0, .2, .66); g.add(door); hit = domeS;
+  } else if (kind === 1) {   // tank
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(.42, .42, .95, 12), bodyMatS);
+    tank.position.y = .5; tank.castShadow = true; g.add(tank);
+    const capT = new THREE.Mesh(new THREE.SphereGeometry(.42, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), glowMat);
+    capT.position.y = .97; g.add(capT);
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, .7, 6), matDark);
+    pipe.position.set(.5, .35, 0); pipe.rotation.z = .8; g.add(pipe); hit = tank;
+  } else if (kind === 2) {   // crate stack
+    box(g, bodyMatS, .55, .5, .55, -.18, .25, 0);
+    box(g, glowMat, .45, .42, .45, .3, .21, .18);
+    const topC = box(g, bodyMatS, .4, .36, .4, .04, .68, .08, .5); hit = topC;
+  } else if (kind === 3) {   // antenna post
+    const podA = new THREE.Mesh(new THREE.CylinderGeometry(.34, .44, .62, 8), bodyMatS);
+    podA.position.y = .31; podA.castShadow = true; g.add(podA);
+    const mastA = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 1.3, 6), matDark);
+    mastA.position.y = 1.1; g.add(mastA);
+    const ballA = new THREE.Mesh(new THREE.SphereGeometry(.13, 8, 8), glowMat);
+    ballA.position.y = 1.78; g.add(ballA); hit = podA;
+  } else {                    // solar array
+    const standS = new THREE.Mesh(new THREE.BoxGeometry(.5, .35, .5), bodyMatS);
+    standS.position.y = .18; g.add(standS);
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(1.05, .06, .7), glowMat);
+    panel.position.y = .55; panel.rotation.z = .3; panel.castShadow = true; g.add(panel); hit = panel;
+  }
+  g.scale.setScalar(.01);   // grows in
+  g.userData.pid = node.pid;
+  hit.userData.pid = node.pid; structHit.push(hit);
+  return { g, glowMat, node, slot, d: d.id, born: performance.now(), gone: 0, hit };
+}
+function updateStructures() {
+  if (!live.ok) return;
+  const seen = new Set();
+  const perDist = {};
+  for (const n of live.nodes) (perDist[n.dist] = perDist[n.dist] || []).push(n);
+  for (const d of DIST) {
+    const list = (perDist[d.id] || []).sort((a, b) =>
+      ((b.cpu || 0) * 50 + (b.mem_mb || 0)) - ((a.cpu || 0) * 50 + (a.mem_mb || 0))).slice(0, 10);
+    for (const n of list) {
+      seen.add(n.pid);
+      const s = structures[n.pid];
+      if (s) { s.node = n; continue; }
+      let slot = -1;
+      for (let i = 0; i < 10; i++) if (!slotsUsed[d.id].has(i)) { slot = i; break; }
+      if (slot < 0) continue;
+      slotsUsed[d.id].add(slot);
+      structures[n.pid] = buildStructure(n, d, slot);
+    }
+  }
+  for (const pid in structures) {
+    const s = structures[pid];
+    if (!seen.has(Number(pid)) && !s.gone) s.gone = performance.now();
+  }
+}
+setInterval(updateStructures, 4000); setTimeout(updateStructures, 1200);
+function stepStructures(dt, t) {
+  for (const pid in structures) {
+    const s = structures[pid];
+    const age = (performance.now() - s.born) / 600;
+    if (!s.gone) {
+      const target = Math.min(1.7, Math.max(.55, Math.cbrt(((s.node.mem_mb || 40)) / 60)));
+      const k = Math.min(1, age) * target;
+      s.g.scale.x += (k - s.g.scale.x) * Math.min(1, dt * .004);
+      s.g.scale.y = s.g.scale.x; s.g.scale.z = s.g.scale.x;
+      const cpu = s.node.cpu || 0;
+      s.glowMat.emissiveIntensity = .12 + Math.min(1.6, cpu / 45) * (0.7 + 0.3 * Math.sin(t * .006 + s.slot));
+    } else {
+      s.g.scale.multiplyScalar(Math.max(0, 1 - dt * .002));
+      if (s.g.scale.x < .03) {
+        byId[s.d].g.remove(s.g);
+        slotsUsed[s.d].delete(s.slot);
+        const hi = structHit.indexOf(s.hit); if (hi >= 0) structHit.splice(hi, 1);
+        delete structures[pid];
+      }
+    }
+  }
+}
+
+/* ---------------- creatures ---------------- */
+const workers = [];
+const bodyMats = {}, hatMats = {};
+const eyeMat = new THREE.MeshBasicMaterial({ color: 0x101820 });
+function matFor(cache, hue, l) {
+  const k = hue + "/" + l;
+  if (!cache[k]) cache[k] = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(`hsl(${hue}, 62%, ${l}%)`), roughness: .7 });
+  return cache[k];
+}
+function spawnWorker(d) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(.26, 14, 12), matFor(bodyMats, d.hue, 58));
+  body.position.y = .26; body.castShadow = true; g.add(body);
+  const hat = new THREE.Mesh(new THREE.SphereGeometry(.21, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    matFor(hatMats, d.hue, 38));
+  hat.position.y = .40; g.add(hat);
+  const e1 = new THREE.Mesh(new THREE.SphereGeometry(.04, 6, 6), eyeMat);
+  const e2 = e1.clone();
+  e1.position.set(-.09, .30, .22); e2.position.set(.09, .30, .22);
+  g.add(e1); g.add(e2);
+  const tool = new THREE.Mesh(new THREE.BoxGeometry(.07, .3, .07), matWood);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(.17, .09, .11), matDark);
+  head.position.y = .15; tool.add(head);
+  tool.position.set(.3, .3, .08); tool.rotation.z = -0.6; tool.visible = false;
+  g.add(tool);
+  const a = Math.random() * Math.PI * 2, r = Math.random() * d.r * .7;
+  g.position.set(d.x + Math.cos(a) * r, 0, d.z + Math.sin(a) * r);
+  world.add(g);
+  return { g, tool, st: d.id, home: d, tx: g.position.x, tz: g.position.z,
+           phase: Math.random() * 9, speed: .55 + Math.random() * .4, retarget: 0, working: false };
+}
+function popTarget(count) { return count === 0 ? 0 : Math.max(2, Math.min(13, Math.round(Math.sqrt(count) * 1.6))); }
+function syncWorkers() {
+  for (const d of DIST) {
+    const want = popTarget(live.st[d.id].count);
+    const have = workers.filter(w => w.st === d.id);
+    for (let i = have.length; i < want; i++) workers.push(spawnWorker(d));
+    if (have.length > want) {
+      let extra = have.length - want;
+      for (let i = workers.length - 1; i >= 0 && extra > 0; i--)
+        if (workers[i].st === d.id) { world.remove(workers[i].g); workers.splice(i, 1); extra--; }
+    }
+  }
+}
+setInterval(syncWorkers, 1500);
+
+function busiestStructures(did, k) {
+  const out = [];
+  for (const pid in structures) {
+    const s = structures[pid];
+    if (s.d === did && !s.gone && (s.node.cpu || 0) > 18) out.push(s);
+  }
+  return out.sort((a, b) => (b.node.cpu || 0) - (a.node.cpu || 0)).slice(0, k);
+}
+function stepWorkers(dt, t) {
+  for (const w of workers) {
+    const d = w.home, busy = live.st[d.id].cpu;
+    const crew = workers.filter(q => q.st === d.id);
+    const working = Math.min(crew.length, Math.ceil(Math.min(1, busy / 60) * crew.length));
+    const idx = crew.indexOf(w);
+    w.working = idx < working;
+    const p = w.g.position;
+    if (w.working) {
+      // hammer at one of the district's hot structures, spread across them
+      const hot = busiestStructures(d.id, 3);
+      let gx, gz;
+      if (hot.length) {
+        const s = hot[idx % hot.length];
+        const a = (idx * 2.4) % (Math.PI * 2), rr = .95 + (idx * 53 % 5) * .13;
+        gx = d.x + s.g.position.x + Math.cos(a) * rr;
+        gz = d.z + s.g.position.z + Math.sin(a) * rr;
+        w.faceX = d.x + s.g.position.x; w.faceZ = d.z + s.g.position.z;
+      } else {
+        const a = (idx / Math.max(1, working)) * Math.PI * 2 + .6, rr = 1.6;
+        gx = d.x + Math.cos(a) * rr; gz = d.z + Math.sin(a) * rr;
+        w.faceX = d.x; w.faceZ = d.z;
+      }
+      p.x += (gx - p.x) * Math.min(1, dt * .003);
+      p.z += (gz - p.z) * Math.min(1, dt * .003);
+      w.g.lookAt(w.faceX, p.y, w.faceZ);
+      w.tool.visible = true;
+      w.tool.rotation.z = -0.6 + Math.sin(w.phase * 2) * .8;
+    } else {
+      w.tool.visible = false;
+      w.retarget -= dt;
+      if (w.retarget <= 0) {
+        const a = Math.random() * Math.PI * 2, r = Math.random() * d.r * .78;
+        w.tx = d.x + Math.cos(a) * r; w.tz = d.z + Math.sin(a) * r;
+        w.retarget = 2600 + Math.random() * 4200;
+      }
+      const dx = w.tx - p.x, dz = w.tz - p.z, dd = Math.hypot(dx, dz);
+      if (dd > .1) {
+        p.x += dx / dd * w.speed * dt * .0018;
+        p.z += dz / dd * w.speed * dt * .0018;
+        w.g.lookAt(p.x + dx, p.y, p.z + dz);
+      }
+    }
+    p.y = Math.abs(Math.sin(w.phase)) * (w.working ? .1 : .05);
+    w.phase += dt * .001 * (w.working ? 9 : 3.2);
+  }
+}
+
+/* ---------------- smoke, speech, boats, gulls ---------------- */
+const puffs = [];
+function spawnPuff(x, y, z) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(.17, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xd8dce2, transparent: true, opacity: .5 }));
+  m.position.set(x, y, z); world.add(m);
+  return { mesh: m, life: 2600 };
+}
+function smoke(dt) {
+  if ((live.inflight > 0 || live.st.villa.cpu > 25) && Math.random() < dt * .004)
+    puffs.push(spawnPuff(byId.villa.x, 4.1, byId.villa.z - 1.4));
+  for (let i = puffs.length - 1; i >= 0; i--) {
+    const pf = puffs[i];
+    pf.mesh.position.y += dt * .0012;
+    pf.mesh.scale.multiplyScalar(1 + dt * .0006);
+    pf.life -= dt;
+    pf.mesh.material.opacity = .4 * Math.max(0, pf.life / 2600);
+    if (pf.life <= 0) { world.remove(pf.mesh); puffs.splice(i, 1); }
+  }
+}
+let sayLabel = null, sayUntil = 0;
+function say(text) {
+  if (!sayLabel) {
+    sayLabel = makeLabel();
+    sayLabel.sp.scale.set(7.4, 2.31, 1);
+    sayLabel.sp.position.set(byId.villa.x, 7.4, byId.villa.z);
+    world.add(sayLabel.sp);
+  }
+  drawLabel(sayLabel, text.length > 40 ? text.slice(0, 40) + "…" : text,
+            text.length > 40 ? text.slice(40, 78) : "", true);
+  sayLabel.sp.visible = true;
+  sayUntil = performance.now() + 9000;
+}
+const boatHull = new THREE.MeshStandardMaterial({ color: 0xcd5c3e, roughness: .8 });
+function refreshBoats() {
+  const d = byId.pier; if (!d.boats) return;
+  const want = Math.min(5, Math.ceil(live.st.pier.count / 10));
+  while (d.boats.children.length < want) {
+    const b = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.CylinderGeometry(.5, .3, .35, 8, 1), boatHull);
+    hull.scale.z = .55; hull.castShadow = true; b.add(hull);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.1, 6), matWood);
+    mast.position.y = .6; b.add(mast);
+    const i = d.boats.children.length;
+    b.position.set(3.4 + (i % 2) * 1.3, -0.6, 6.2 + i * 1.2);
+    d.boats.add(b);
+  }
+  while (d.boats.children.length > want) d.boats.remove(d.boats.children[0]);
+}
+setInterval(refreshBoats, 3000);
+/* Couriers: when two districts hold an open socket, a little carrier
+   walks the bridges between them with a crate on its head — traffic you
+   can watch instead of a line you have to imagine. Routes go through the
+   Villa plaza, because that is how the bridges are laid. */
+const couriers = new Map();   // "a>b" -> courier
+const crateMat = new THREE.MeshStandardMaterial({ color: 0x46c8dc, roughness: .5,
+  emissive: 0x1c8a9c, emissiveIntensity: .5 });
+function makeCourier(a, b) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(.24, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0x9adfe8, roughness: .7 }));
+  body.position.y = .24; body.castShadow = true; g.add(body);
+  const crate = new THREE.Mesh(new THREE.BoxGeometry(.3, .3, .3), crateMat);
+  crate.position.y = .62; g.add(crate);
+  world.add(g);
+  const A = byId[a], B = byId[b], V = byId.villa;
+  const path = [[A.x, A.z]];
+  if (a !== "villa" && b !== "villa") path.push([V.x, V.z]);
+  path.push([B.x, B.z]);
+  return { g, path, t: Math.random(), dir: 1, speed: .00006 + Math.random() * .00004 };
+}
+function syncCouriers() {
+  const want = new Map();
+  for (const [a, b] of live.links.slice(0, 6))
+    if (byId[a] && byId[b]) want.set(a + ">" + b, [a, b]);
+  for (const [k, pair] of want) if (!couriers.has(k)) couriers.set(k, makeCourier(...pair));
+  for (const [k, c] of couriers) if (!want.has(k)) { world.remove(c.g); couriers.delete(k); }
+}
+setInterval(syncCouriers, 4000);
+function stepCouriers(dt, t) {
+  for (const [, c] of couriers) {
+    c.t += dt * c.speed * c.dir;
+    if (c.t > 1) { c.t = 1; c.dir = -1; }
+    if (c.t < 0) { c.t = 0; c.dir = 1; }
+    // position along the polyline
+    const segs = c.path.length - 1;
+    const ft = c.t * segs, i = Math.min(segs - 1, Math.floor(ft)), lt = ft - i;
+    const [ax, az] = c.path[i], [bx, bz] = c.path[i + 1];
+    const x = ax + (bx - ax) * lt, z = az + (bz - az) * lt;
+    c.g.position.set(x, Math.abs(Math.sin(t * .008 + c.t * 40)) * .06, z);
+    c.g.lookAt(bx, 0, bz);
+  }
+}
+
+const gulls = [];
+for (let i = 0; i < 5; i++) {
+  const gm = new THREE.Mesh(new THREE.ConeGeometry(.16, .5, 4),
+    new THREE.MeshBasicMaterial({ color: 0xf4f6f8 }));
+  gm.rotation.x = Math.PI / 2; world.add(gm);
+  gulls.push({ m: gm, a: Math.random() * 9, r: 14 + Math.random() * 16,
+               h: 7 + Math.random() * 5, v: .00012 + Math.random() * .00012 });
+}
+
+/* ---------------- day / night ---------------- */
+const seaDay = new THREE.Color(0x1c6f80), seaNight = new THREE.Color(0x0a2733);
+const _c1 = new THREE.Color(), _c2 = new THREE.Color();
+function applyTime(t) {
+  const day = daylight(), h = nowH();
+  const blush = Math.max(smooth(1 - Math.abs(h - 6.6) / 1.5), smooth(1 - Math.abs(h - 19.9) / 1.5));
+  _c1.copy(skyTopNight).lerp(skyTopDay, day);
+  _c2.copy(skyBotNight).lerp(skyBotDay, day).lerp(dawnTint, blush * .55);
+  skyMat.uniforms.top.value.copy(_c1);
+  skyMat.uniforms.bot.value.copy(_c2);
+  fogCol.copy(_c2);
+  renderer.setClearColor(fogCol); scene.fog.color.copy(fogCol);
+  seaMat.color.copy(seaNight).lerp(seaDay, day);
+  hemi.intensity = lerp(.18, .8, day);
+  const frac = (h - 12) / 24 * Math.PI * 2;
+  const sx = Math.sin(frac) * -110, sy = Math.cos(frac) * 80, sz = -42;
+  sun.position.set(sx, sy, sz); sun.intensity = Math.max(0, Math.min(1.25, sy / 36));
+  sunDisc.position.set(sx * 2.4, sy * 2.8, sz * 2.6); sunDisc.visible = sy > -8;
+  moon.position.set(-sx, -sy, -sz); moon.intensity = sy < 6 ? .22 : 0;
+  moonDisc.position.set(-sx * 2.4, -sy * 2.8, -sz * 2.6);
+  moonDisc.visible = -sy > -8; moonDisc.material.opacity = 1 - day * .8;
+  starMat.opacity = (1 - day) * .9;
+  const glow = smooth((0.55 - day) / 0.45);
+  winMat.emissiveIntensity = glow * 2.1;
+  for (const d of DIST) rimMats[d.id].emissiveIntensity = .35 + glow * 1.5 + (live.st[d.id].cpu > 30 ? .6 : 0);
+  const low = smooth(1 - Math.abs(sy) / 30);
+  sun.color.setHSL(.09 + .04 * (1 - low), .8, lerp(.72, .58, low));
+  const dd = new Date();
+  document.getElementById("ck").textContent =
+    `${String(dd.getHours()).padStart(2, "0")}:${String(dd.getMinutes()).padStart(2, "0")} — ` +
+    (day > .8 ? "day" : day > .45 ? (h < 12 ? "morning" : "evening") : day > .12 ? (h < 12 ? "dawn" : "dusk") : "night");
+  document.getElementById("gp").textContent = live.gpu
+    ? `GPU ${Math.round(live.gpu.util || 0)}% · ${Math.round(live.gpu.vram_used || 0)} MiB · ${Math.round(live.gpu.temp || 0)}°C` : "";
+  return { day, glow };
+}
+
+/* ---------------- district labels + job board ---------------- */
+function refreshLabels() {
+  for (const d of DIST) {
+    const b = live.st[d.id], busy = b.cpu > 12;
+    let l2 = `×${b.count}`;
+    if (busy) {
+      const top = live.nodes.filter(n => n.dist === d.id).sort((a, c) => (c.cpu || 0) - (a.cpu || 0))[0];
+      if (top) {
+        let nm = String(top.label).replace(/·\d+$/, "");
+        if (nm.length > 18) nm = nm.slice(0, 17) + "…";
+        l2 = `×${b.count} — ${nm} ${(top.cpu || 0).toFixed(0)}%`;
+      }
+    }
+    drawLabel(d.label, d.name, l2, busy);
+  }
+  const u = live.gpu ? Math.round(live.gpu.util || 0) : 0;
+  drawLabel(byId.light.label, "GPU Lighthouse", `${u}% right now`, u > 55);
+  // job board: the machine's actual workload, in words
+  const hot = live.nodes.filter(n => (n.cpu || 0) > 20)
+    .sort((a, b) => (b.cpu || 0) - (a.cpu || 0)).slice(0, 7);
+  document.getElementById("jobs").innerHTML = hot.length
+    ? hot.map(n => `<div class="r"><b>${String(n.label).replace(/</g, "&lt;")}</b>` +
+        ` <span>· ${byId[n.dist].name.replace("The ", "")} · ${(n.cpu || 0).toFixed(0)}% · ${((n.mem_mb || 0) / 1024).toFixed(1)} GB</span></div>`).join("")
+    : `<div class="r"><span>nothing heavy right now — the town idles</span></div>`;
+}
+setInterval(refreshLabels, 2000); setTimeout(refreshLabels, 900);
+
+/* ---------------- the explanation ---------------- */
+const EXPLAIN = {
+  villa:    "Jarvis's own home: his brain (the bridge), voice, ears and face — the python and webview processes that ARE him. Smoke from the chimney = he is thinking about something right now.",
+  workshop: "Claude and every terminal shell — where things get built. When you see hammering here, code or video is actually being made on this machine.",
+  codehall: "Every VS Code window and editor you have open.",
+  mills:    "All the node.js processes. The windmill's sails literally turn at their combined CPU speed.",
+  pier:     "Your browsers — Opera, Chrome, Edge, ChatGPT. Each building is one browser process; boats moor when many are open.",
+  archive:  "The databases (postgres and friends) — where things are kept.",
+  arcade:   "Games. Dark and dead until one is running; right now it knows whether Roblox is on.",
+  town:     "Windows itself — the ~290 services, drivers and system processes that keep the lights on. Always the biggest district, mostly asleep.",
+  light:    "The RTX 5070 Ti. The lamp's brightness IS the GPU's utilisation, and the beam sweeps the sea when it works hard or night falls.",
+};
+{
+  const rows = [];
+  for (const d of DIST) rows.push(
+    `<div class="chip" style="background:hsl(${d.hue},70%,55%)"></div>` +
+    `<div class="n">${d.name}</div><div class="e">${EXPLAIN[d.id]}</div>`);
+  rows.push(`<div class="chip" style="background:hsl(46,70%,55%)"></div>` +
+    `<div class="n">GPU Lighthouse</div><div class="e">${EXPLAIN.light}</div>`);
+  document.getElementById("aboutRows").innerHTML = rows.join("");
+  const about = document.getElementById("about");
+  const open = () => about.style.display = "flex";
+  const close = () => {
+    about.style.display = "none";
+    try { localStorage.setItem("island-seen", "1"); } catch (e) {}
+  };
+  document.getElementById("helpBtn").addEventListener("click", open);
+  document.getElementById("aboutClose").addEventListener("click", close);
+  about.addEventListener("click", e => { if (e.target === about) close(); });
+  window.addEventListener("keydown", e => {
+    if (e.key === "?" || e.key === "/") open();
+    if (e.key === "Escape") close();
+  });
+  let seen = null;
+  try { seen = localStorage.getItem("island-seen"); } catch (e) {}
+  if (!seen) setTimeout(open, 1400);
+}
+
+/* Busy structures wear their own name tag, so what is being worked on is
+   readable from across the water without hovering. */
+function refreshStructTags() {
+  const tagged = [];
+  for (const pid in structures) {
+    const s = structures[pid];
+    if (!s.gone && (s.node.cpu || 0) > 25) tagged.push(s);
+  }
+  tagged.sort((a, b) => (b.node.cpu || 0) - (a.node.cpu || 0));
+  const keep = new Set(tagged.slice(0, 6));
+  for (const pid in structures) {
+    const s = structures[pid];
+    if (keep.has(s)) {
+      if (!s.tag) {
+        s.tag = makeLabel();
+        s.tag.sp.scale.set(3.1, 0.97, 1);
+        s.tag.sp.position.y = 2.3;
+        s.g.add(s.tag.sp);
+      }
+      let nm = String(s.node.label).replace(/·\d+$/, "");
+      if (nm.length > 14) nm = nm.slice(0, 13) + "…";
+      drawLabel(s.tag, nm, `${(s.node.cpu || 0).toFixed(0)}% cpu`, true);
+      s.tag.sp.visible = true;
+      // labels live in the structure's scaled group; cancel the scale
+      const inv = 1 / Math.max(.2, s.g.scale.x);
+      s.tag.sp.scale.set(3.1 * inv, 0.97 * inv, 1);
+      s.tag.sp.position.y = 2.3 * Math.min(1.4, inv);
+    } else if (s.tag) s.tag.sp.visible = false;
+  }
+}
+setInterval(refreshStructTags, 2000); setTimeout(refreshStructTags, 1600);
+
+/* ---------------- hover ---------------- */
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(-2, -2);
+const tip = document.getElementById("tip");
+let mx = 0, my = 0;
+canvas.addEventListener("pointermove", e => {
+  mx = e.clientX; my = e.clientY;
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+});
+function hover() {
+  ray.setFromCamera(mouse, camera);
+  // a structure first — one real process
+  const sh = ray.intersectObjects(structHit, false);
+  if (sh.length) {
+    const s = structures[sh[0].object.userData.pid];
+    if (s) {
+      const n = s.node, d = byId[s.d];
+      tip.innerHTML = `<div class="t">${String(n.label).replace(/</g, "&lt;")}</div>`
+        + `<div class="d">one process in ${d.name}</div>`
+        + `<div class="row"><span>pid</span><span>${n.pid}</span></div>`
+        + `<div class="row"><span>cpu</span><span>${(n.cpu || 0).toFixed(0)}%</span></div>`
+        + `<div class="row"><span>memory</span><span>${((n.mem_mb || 0) / 1024).toFixed(2)} GB</span></div>`
+        + `<div class="row"><span>reads</span><span>${Math.round(n.read_kb || 0)} KB/s</span></div>`
+        + `<div class="row"><span>writes</span><span>${Math.round(n.write_kb || 0)} KB/s</span></div>`;
+      place(); return;
+    }
+  }
+  const hits = ray.intersectObjects(hitPlatforms, false);
+  if (!hits.length) { tip.style.display = "none"; return; }
+  const id = hits[0].object.userData.district;
+  if (id === "light") {
+    let html = `<div class="t">GPU Lighthouse</div><div class="d">${byId.light.sub}</div>`;
+    if (live.gpu) html += `<div class="row"><span>utilisation</span><span>${Math.round(live.gpu.util || 0)}%</span></div>`
+      + `<div class="row"><span>power</span><span>${Math.round(live.gpu.watts || 0)} W</span></div>`
+      + `<div class="row"><span>memory</span><span>${Math.round(live.gpu.vram_used || 0)} / ${Math.round(live.gpu.vram_total || 0)} MiB</span></div>`
+      + `<div class="row"><span>temperature</span><span>${Math.round(live.gpu.temp || 0)} °C</span></div>`;
+    tip.innerHTML = html; place(); return;
+  }
+  const d = byId[id], b = live.st[id];
+  let html = `<div class="t">${d.name}</div><div class="d">${d.sub}</div>`
+    + `<div class="row"><span>processes</span><span>${b.count}</span></div>`
+    + `<div class="row"><span>cpu, together</span><span>${b.cpu.toFixed(0)}%</span></div>`
+    + `<div class="row"><span>memory</span><span>${(b.mem / 1024).toFixed(1)} GB</span></div>`;
+  const top = live.nodes.filter(n => n.dist === id).sort((a, c) => (c.cpu || 0) - (a.cpu || 0)).slice(0, 5);
+  if (top.length) {
+    html += `<div class="d" style="margin-top:6px">busiest right now</div>`;
+    for (const n of top)
+      html += `<div class="row"><span>${String(n.label).replace(/</g, "&lt;")}</span><span>${(n.cpu || 0).toFixed(0)}%</span></div>`;
+  }
+  tip.innerHTML = html; place();
+  function place() {
+    tip.style.display = "block";
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.min(window.innerWidth - tw - 12, Math.max(8, mx + 16)) + "px";
+    tip.style.top = Math.min(window.innerHeight - th - 12, Math.max(8, my - th - 10)) + "px";
+  }
+}
+
+/* ---------------- main loop ---------------- */
+const seaPos = seaGeo.attributes.position;
+const seaBase = seaPos.array.slice();
+let last = performance.now(), hoverTick = 0;
+function frame(t) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(50, t - last); last = t;
+  const { day, glow } = applyTime(t);
+  for (let i = 0; i < seaPos.count; i++) {
+    const x = seaBase[i * 3], y = seaBase[i * 3 + 1];
+    seaPos.array[i * 3 + 2] = Math.sin(x * .1 + t * .0009) * .16 + Math.cos(y * .12 + t * .0007) * .13;
+  }
+  seaPos.needsUpdate = true;
+  if (millHead) millHead.rotation.z += dt * (0.0002 + Math.min(0.004, live.st.mills.cpu * 0.00003));
+  const util = live.gpu ? (live.gpu.util || 0) / 100 : 0;
+  if (lightLamp) lightLamp.material.opacity = .25 + .75 * Math.max(util, glow * .6);
+  if (lightBeam) {
+    lightBeam.intensity = (glow > .25 || util > .55) ? 1.8 + util * 2.6 : 0;
+    const a = t * .0006;
+    lightBeam.target.position.set(Math.cos(a) * 50, -3, Math.sin(a) * 50);
+  }
+  const gameOn = live.st.arcade.count > 0;
+  if (arcadeSign) arcadeSign.material.emissiveIntensity = gameOn ? .9 + .5 * Math.sin(t * .006) : 0;
+  if (arcadeLight) arcadeLight.intensity = gameOn ? 1.1 : 0;
+  const pier = byId.pier;
+  if (pier.boats) pier.boats.children.forEach((b, i) => {
+    b.position.y = -0.6 + Math.sin(t * .0012 + i * 2.1) * .07;
+    b.rotation.z = Math.sin(t * .001 + i) * .05;
+  });
+  for (const gl of gulls) {
+    gl.a += gl.v * dt;
+    gl.m.position.set(Math.cos(gl.a) * gl.r, gl.h + Math.sin(gl.a * 3) * .8, Math.sin(gl.a) * gl.r);
+    gl.m.rotation.y = -gl.a;
+    gl.m.visible = day > .25;
+  }
+  stepStructures(dt, t);
+  stepWorkers(dt, t);
+  stepCouriers(dt, t);
+  smoke(dt);
+  if (sayLabel && performance.now() > sayUntil) sayLabel.sp.visible = false;
+  hoverTick += dt;
+  if (hoverTick > 90) { hover(); hoverTick = 0; }
+  controls.update();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

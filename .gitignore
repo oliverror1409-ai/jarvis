@@ -1,0 +1,122 @@
+# The two upstream projects carry their own git history.
+OpenJarvis/
+VoiceJarvisSrc/
+
+# Runtime output, not source.
+logs/
+backups/
+*.log
+daemon-debug.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Third-party services installed beside the repositories, not source of ours.
+services/*
+
+# Except the pseudoconsole holder, which is ours and which herdr's server will
+# not start without. Its venv stays ignored; the script does not.
+!services/herdr-console/
+services/herdr-console/*
+!services/herdr-console/serve.py
+# And the script that rebuilds the second-opinion transcriber, which is ours
+# even though what it builds is not. The environment itself stays ignored.
+!services/rebuild-whisper-fallback.ps1
+.gstack/
+
+# Skill copies that hallmark's installer wrote into the project (the same 107
+# files three times over). Third-party, like services/, and they would
+# otherwise be four fifths of any graph built over this folder.
+.agents/
+.claude/
+agent/skills/
+# graphify's graph is derived from the code, not source: `graphify update .`
+# rebuilds it from the AST in seconds and with no API call, so committing 2.3 MB
+# of JSON that changes on every refactor buys nothing.
+graphify-out/
+
+# Review artefacts: the video is large and also lives in
+# D:/Oliver/Videos/Screen Recordings. Stills and text stay in the repo.
+review-artefacts/*.mp4
+
+# Render scratch: segments, frames and beds that ffmpeg writes on the way to a
+# reel. Twenty-six gigabytes of it, and every byte rebuilds from the footage on
+# E: plus the scripts beside this file. The catalog is the exception -- grading
+# 132 clips for light and subject was real work and does not come back free.
+clients/*/build/*
+!clients/*/build/catalog/
+!clients/*/build/photos/
+
+# The same rule as build/, applied to the client jobs that predate it. Every
+# reel is assembled the same way -- segments, a joined cut, a lettered cut, a
+# marked cut, QC stills, a generated bed, a synthesised voice -- and all of it
+# rebuilds from the sources and the script beside it. Four and a half
+# gigabytes of that had been committed.
+#
+# The finished cuts are NOT here on purpose: clients/<job>/<job>.mp4 and
+# hot-dog-zone/variants are what was actually delivered, and they stay in the
+# repository. Only the working parts are ignored, and the text that describes
+# them -- shot lists, subtitles, ASS and SRT -- stays too.
+clients/*/render/*.mp4
+clients/*/render/*.wav
+clients/*/render/*.mov
+clients/*/story/*.mp4
+clients/*/story/*.wav
+clients/*/review/
+clients/*/frames/
+clients/*/frames-check/
+clients/*/frames-now/
+clients/*/voice/
+clients/*/vo/
+clients/*/vo-*/
+clients/*/music/
+clients/*/sfx/
+clients/*/reference/
+
+# A 220 MB build artefact of the desktop app. It is produced by the build, so
+# it does not belong in the history of the source.
+Jarvis-Windows-x64.zip
+
+# The restaurant promo's supplied footage: 400MB of source that came from his
+# Downloads and can be copied back from there. The compositions are tracked.
+clients/nostimolimou/restaurant-promo/assets/source/
+clients/nostimolimou/restaurant-promo/node_modules/
+clients/nostimolimou/restaurant-promo/.hyperframes/
+clients/nostimolimou/restaurant-promo/snapshots/
+
+# Screenshots taken while working on the HUD graph. Evidence, not source.
+hud-before.png
+hud-after*.png
+.playwright-mcp/
+
+# A loop file is the same reel written three times so it keeps playing in VLC
+# while he watches it. It is a viewing convenience, not a deliverable, and it
+# rebuilds with one concat from the cut that IS committed.
+clients/*/out/BEST-*-loop.mp4
+
+# ── Secrets, for when this repo is public ──────────────────────────────────
+# Nothing here has ever been committed: the keys live in ~/.config/jarvis,
+# outside the repo, which is the right shape and the reason there was nothing
+# to clean up. These rules exist so that stays true the first time somebody
+# drops a .env next to the code, which is how it usually goes wrong.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+secrets.json
+credentials.json
+**/nim-keys.json
+**/you-key.json
+**/contabo.json
+**/beszel.json
+# A real config carries llm_api_key and sip_password. The example does not.
+config.json
+!config.example.json
+!**/config.example.json
+# Local setup state: which integrations this machine has turned on.
+setup-state.json
