@@ -1906,10 +1906,21 @@ async def setup_key(request: Request) -> dict:
     except (OSError, ValueError):
         data = {}
     # Some homes hold a list of keys and rotate through them; others hold one.
+    # Which it is cannot be inferred from the file: on a first run the file is
+    # empty, the field is absent, and guessing "one" turned a key into a
+    # string that every reader then iterated character by character. The
+    # catalogue says which, and it is authoritative.
     existing = data.get(field)
-    if isinstance(existing, list):
-        if value not in existing:
-            existing.append(value)
+    if isinstance(existing, list) or (existing is None and item.get("multi")):
+        bag = existing if isinstance(existing, list) else []
+        if value not in bag:
+            bag.append(value)
+        data[field] = bag
+    elif isinstance(existing, str) and item.get("multi"):
+        # Written by a version that got this wrong. Repair it in passing.
+        data[field] = [existing] if existing != value else [value]
+        if value not in data[field]:
+            data[field].append(value)
     else:
         data[field] = value
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -2311,7 +2322,7 @@ def _nim_keys(model: str | None = None) -> list:
     key". Entitled keys go first, then the general ones that name no models
     at all, then the rest as a last resort.
     """
-    entries = [k for k in (_nim_conf().get("keys") or []) if k.get("key")]
+    entries = _as_key_entries(_nim_conf().get("keys"))
     if not model:
         return [k["key"] for k in entries]
 
@@ -2338,10 +2349,50 @@ def _is_gemini(model: str) -> bool:
     return str(model).startswith("gemini")
 
 
+def _as_key_entries(raw) -> list:
+    """Key fields as a list of dicts, whatever shape they were written in.
+
+    A bare string is one key. Iterating it, which is what this used to do,
+    called .get() on a character and raised -- so a config written by the
+    older setup page did not degrade, it failed outright.
+    """
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        return [{"key": raw}]
+    if isinstance(raw, dict):
+        raw = [raw]
+    out = []
+    for k in raw:
+        entry = k if isinstance(k, dict) else {"key": k}
+        if entry.get("key") and isinstance(entry["key"], str):
+            out.append(entry)
+    return out
+
+
+def _as_key_list(raw) -> list:
+    """Every shape a key field has ever been written in, as a list.
+
+    A bare string is one key, not a sequence of one-character keys -- which
+    is what iterating it produced, silently, for anyone whose config was
+    written before the setup page learnt to store a list.
+    """
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, dict):
+        raw = [raw]
+    out = []
+    for k in raw:
+        key = k.get("key") if isinstance(k, dict) else k
+        if key and isinstance(key, str):
+            out.append(key)
+    return out
+
+
 def _gemini_keys() -> list:
-    raw = _nim_conf().get("gemini_keys") or []
-    return [k.get("key") if isinstance(k, dict) else k
-            for k in raw if (k.get("key") if isinstance(k, dict) else k)]
+    return _as_key_list(_nim_conf().get("gemini_keys"))
 
 
 def _nim_request(model: str, system_prompt: str, prompt: str, *, timeout: float,

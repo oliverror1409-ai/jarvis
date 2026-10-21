@@ -39,7 +39,8 @@
           "cost": "Free tier, no card required",
           "get": "https://build.nvidia.com/explore/discover",
           "hint": "Sign in, open any model, and copy the key from the Get API Key button.",
-          "default": false
+          "default": false,
+          "multi": true
         },
         {
           "id": "gemini",
@@ -49,7 +50,8 @@
           "secret": "nim-keys.json:gemini_keys",
           "cost": "Free tier available",
           "get": "https://aistudio.google.com/apikey",
-          "default": false
+          "default": false,
+          "multi": true
         },
         {
           "id": "openai",
