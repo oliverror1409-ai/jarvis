@@ -26,6 +26,7 @@ import logging
 import os
 import queue
 import re
+import shutil
 import subprocess
 import threading
 import urllib.request
@@ -41,7 +42,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-PORT = 8100
+# 8100 unless told otherwise. A fixed port is the first thing to go wrong on
+# somebody else's machine, and "address already in use" is a poor welcome.
+PORT = int(os.environ.get("JARVIS_BRIDGE_PORT", "8100"))
 MODEL_ID = "claude-subscription"
 MODEL_FAST_ID = "claude-subscription-fast"
 # Forces agent mode — tools and multiple turns — regardless of what the text
@@ -1745,7 +1748,7 @@ def ui_page() -> FileResponse:
 #   Content-Type is JSON, which forces a CORS preflight for cross-site posts.
 # A same-origin fetch from /setup passes all three without noticing.
 ALLOWED_ORIGINS = {
-    "http://127.0.0.1:8100", "http://localhost:8100",
+    f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}",
     "http://127.0.0.1:8123", "http://localhost:8123",
 }
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
@@ -1861,6 +1864,13 @@ def setup_status(id: str) -> dict:
     url = item.get("verify")
     if not url:
         return {"id": id, "ready": False, "kind": "manual"}
+    # A verify URL pointing at this bridge names the default port, because the
+    # catalogue is a static file and has to name something. Send it wherever
+    # this process actually listens, or --port makes the bridge report itself
+    # as down.
+    if PORT != 8100:
+        for host in ("127.0.0.1", "localhost"):
+            url = url.replace("http://%s:8100" % host, "http://%s:%d" % (host, PORT))
     try:
         with urllib.request.urlopen(url, timeout=1.5) as answer:
             return {"id": id, "ready": 200 <= answer.status < 500,
@@ -2088,6 +2098,28 @@ _nim_cache: dict = {"mtime": -1.0, "conf": {}}
 _nim_key_turn = itertools.count()
 
 
+# Jarvis does not require a Claude subscription. When the CLI is not installed
+# the bridge must not try to spawn it -- with shell=True a missing command is
+# not a FileNotFoundError, it is cmd.exe printing "is not recognized" and
+# exiting 1, which reads like a real failure and surfaces as one. Probed once
+# every five minutes, so installing it mid-session is picked up without
+# putting a PATH search on the hot path.
+_CLAUDE_PROBE = {"at": 0.0, "found": None}
+
+
+def _claude_present() -> bool:
+    now = time.time()
+    found = _CLAUDE_PROBE["found"]
+    if found is not None and now - _CLAUDE_PROBE["at"] < 300:
+        return found
+    found = any(shutil.which(name) for name in ("claude", "claude.cmd", "claude.exe"))
+    if found != _CLAUDE_PROBE["found"]:
+        log.info("Claude CLI %s", "found on PATH" if found else
+                 "not installed - answering on the hosted models instead")
+    _CLAUDE_PROBE.update(at=now, found=found)
+    return found
+
+
 def _nim_conf() -> dict:
     """The NIM config, re-read whenever the file changes.
 
@@ -2145,6 +2177,65 @@ def usage_pressure() -> float:
         return 0.0
 
 
+# What answers each lane when nobody has written a routing block -- which is
+# every fresh install, since the setup page collects keys and not model names.
+# Each lane is a list tried in order: NVIDIA retires hosted models without
+# notice, and a lane holding one model is not a fallback. Latencies measured
+# 2026-09-04, three calls each: laguna 0.6s, nemotron-lightning 0.6s.
+DEFAULT_ROUTING = {
+    "enabled": True,
+    "chat": ["nvidia/nemotron-3-super-120b-a12b",
+             "nvidia/nemotron-3.5-lightning-30b-a3b", "poolside/laguna-xs-2.1"],
+    "agent": ["nvidia/nemotron-3-super-120b-a12b",
+              "nvidia/nemotron-3.5-lightning-30b-a3b", "poolside/laguna-xs-2.1"],
+    "fast": ["poolside/laguna-xs-2.1", "nvidia/nemotron-3.5-lightning-30b-a3b"],
+    "bg": ["nvidia/nemotron-3.5-lightning-30b-a3b", "poolside/laguna-xs-2.1"],
+    "classification": ["poolside/laguna-xs-2.1",
+                       "nvidia/nemotron-3.5-lightning-30b-a3b"],
+    "timeout_sec": {"fast": 20, "bg": 45, "chat": 40, "agent": 50,
+                    "classification": 15},
+}
+
+# Gemini is a complete alternative to NIM, not an addition to it, so a config
+# holding only Gemini keys has to satisfy the same gate.
+GEMINI_ROUTING = {
+    "enabled": True,
+    "chat": ["gemini-2.5-flash"], "agent": ["gemini-2.5-flash"],
+    "fast": ["gemini-2.5-flash-lite"], "bg": ["gemini-2.5-flash-lite"],
+    "classification": ["gemini-2.5-flash-lite"],
+    "timeout_sec": {"fast": 20, "bg": 45, "chat": 40, "agent": 50,
+                    "classification": 15},
+}
+
+
+def _routing() -> dict:
+    """The routing table, defaulted so a pasted key is enough to work.
+
+    An explicit routing block always wins -- somebody who named their own
+    models meant it. Otherwise the defaults are filled in for whichever
+    provider actually has keys, and a config with neither returns nothing so
+    the gates below refuse rather than calling a provider that cannot answer.
+    """
+    conf = _nim_conf()
+    routing = conf.get("routing") or {}
+    if routing.get("chat") or routing.get("fast"):
+        return routing
+    if conf.get("keys"):
+        return {**DEFAULT_ROUTING, **routing}
+    if _gemini_keys():
+        return {**GEMINI_ROUTING, **routing}
+    return routing
+
+
+def _have_fallback() -> bool:
+    """Can anything other than Claude answer?"""
+    conf = _nim_conf()
+    if not (conf.get("keys") or _gemini_keys()):
+        return False
+    routing = _routing()
+    return bool(routing.get("chat") or routing.get("fast"))
+
+
 def _nim_model_for(mode: str, classification: bool, *,
                    tools: bool = False, pressure: float | None = None) -> str | None:
     """Which NIM model answers this call, or None to keep it on Claude.
@@ -2154,9 +2245,14 @@ def _nim_model_for(mode: str, classification: bool, *,
     tools: a tool call routed to a model that cannot make one turns a working
     answer into a wrong one, which is a worse trade than a plainer voice.
     """
-    routing = (_nim_conf().get("routing") or {})
-    if not routing.get("enabled") or not (_nim_conf().get("keys") or []):
+    routing = _routing()
+    if routing.get("enabled") is False or not _have_fallback():
         return None
+    # With no Claude installed there is no second opinion to hold anything
+    # back for: every lane answers here or it is not answered at all.
+    if not _claude_present():
+        return (routing.get(mode) or routing.get("chat")
+                or routing.get("fast") or None)
     if mode == "fast" and tools:
         # A short question is not a small one. "Read the overnight review to
         # me" looks simple, arrives in the fast lane, and carries the file
@@ -2485,6 +2581,15 @@ def _spoken_failure(exc: Exception) -> str:
         return (
             "That took longer than I'm allowed to wait, sir. "
             "Ask me again, or narrow it down a little."
+        )
+    if "no model is configured" in detail or not _claude_present():
+        # Nobody who never installed the CLI can be helped by `claude login`,
+        # and that was the advice this used to give them.
+        return (
+            "I have no model to think with yet. Open the setup page at "
+            "127.0.0.1:%d/setup and add a key -- NVIDIA or Google, both free "
+            "-- or install the Claude CLI if you have a subscription."
+            % PORT
         )
     if "auth" in detail or "401" in detail or "login" in detail:
         return (
@@ -3024,7 +3129,10 @@ def _window_spent() -> bool:
 
 # What a dead login looks like coming back from the CLI:
 # "Failed to authenticate: OAuth session expired and could not be refreshed".
-_AUTH_DEAD_RE = re.compile(r"authenticat|oauth|\b401\b|claude login", re.I)
+# ...or, with no subscription, the shell refusing the command at all.
+_AUTH_DEAD_RE = re.compile(
+    r"authenticat|oauth|\b401\b|claude login"
+    r"|not recognized|command not found|No such file", re.I)
 
 
 _CREDS_PATH = Path.home() / ".claude" / ".credentials.json"
@@ -3041,6 +3149,8 @@ def _login_dead() -> bool:
     off the hot path, short enough that a fresh `claude login` is picked
     up almost immediately.
     """
+    if not _claude_present():
+        return True
     now = time.time()
     if now - _login_probe["at"] < 60:
         return _login_probe["dead"]
@@ -3088,8 +3198,8 @@ def _rescue_model(exc: Exception, mode: str) -> str | None:
                     "`claude login` is the cure", _SPENT_HOLD_S // 60)
     else:
         return None
-    routing = (_nim_conf().get("routing") or {})
-    if not routing.get("enabled") or not (_nim_conf().get("keys") or []):
+    routing = _routing()
+    if routing.get("enabled") is False or not _have_fallback():
         return None
     return routing.get(mode) or routing.get("chat") or routing.get("fast") or None
 
@@ -3137,6 +3247,13 @@ def _call_claude(system_prompt: str, prompt: str, *, fast: bool, canva: bool,
         except Exception as exc:  # noqa: BLE001 — Claude still owes an answer
             log.warning("NIM %s failed (%s), falling back to Claude", nim_model,
                         type(exc).__name__)
+
+    if result is None and not nim_model and not _claude_present():
+        raise RuntimeError(
+            "No model is configured. Jarvis needs either the Claude CLI "
+            "(npm i -g @anthropic-ai/claude-code, then claude login) or a "
+            "hosted key: open http://127.0.0.1:%d/setup and add NVIDIA NIM or "
+            "Google Gemini, both of which have a free tier." % PORT)
 
     if result is None and _login_dead() and nim_model:
         # The CLI cannot answer with a dead login -- it hangs on a refresh

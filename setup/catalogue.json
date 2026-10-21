@@ -14,29 +14,72 @@
   "version": 1,
   "groups": [
     {
-      "id": "core",
-      "title": "The core",
-      "blurb": "Jarvis runs without any of the rest. These are the parts that make it answer at all.",
+      "id": "brain",
+      "title": "The brain - pick at least one",
+      "blurb": "Jarvis needs one model provider and does not care which. All three have a free way in; none of them is required if another is ticked.",
       "items": [
         {
           "id": "bridge",
           "name": "Claude bridge",
-          "what": "Routes Jarvis through your own Claude subscription instead of a metered API key.",
+          "what": "Routes Jarvis through a Claude subscription you already pay for, with no metered API key. Optional - if you skip it, the hosted models below answer everything instead.",
           "needs": "login",
           "cost": "Included with a Claude subscription",
           "verify": "http://127.0.0.1:8100/health",
           "command": "claude login",
           "get": "https://claude.ai/login",
-          "default": true,
+          "default": false,
           "local": true
         },
+        {
+          "id": "nim",
+          "name": "NVIDIA NIM",
+          "what": "A free tier of hosted open models, no card required. Enough on its own: with a key here and nothing else ticked, Jarvis works.",
+          "needs": "key",
+          "secret": "nim-keys.json:keys",
+          "cost": "Free tier, no card required",
+          "get": "https://build.nvidia.com/explore/discover",
+          "hint": "Sign in, open any model, and copy the key from the Get API Key button.",
+          "default": false
+        },
+        {
+          "id": "gemini",
+          "name": "Google Gemini",
+          "what": "Gemini, with a free tier that is generous for everyday use. Also enough on its own.",
+          "needs": "key",
+          "secret": "nim-keys.json:gemini_keys",
+          "cost": "Free tier available",
+          "get": "https://aistudio.google.com/apikey",
+          "default": false
+        },
+        {
+          "id": "openai",
+          "name": "OpenAI / Codex",
+          "what": "GPT models, and the Codex CLI for a second coding agent.",
+          "needs": "key",
+          "secret": "config.json:openai_api_key",
+          "cost": "Pay as you go",
+          "get": "https://platform.openai.com/api-keys",
+          "hint": "Create a secret key. It is shown once -- paste it straight in.",
+          "command": "npm i -g @openai/codex",
+          "default": false
+        }
+      ]
+    },
+    {
+      "id": "voice",
+      "title": "Voice and memory",
+      "blurb": "All three run on your own machine, need no account, and cost nothing. Skip them and Jarvis still answers in text.",
+      "items": [
         {
           "id": "whisper",
           "name": "Whisper",
           "what": "Turns your speech into text, on your own GPU. Nothing leaves the machine.",
           "needs": "gpu",
           "cost": "Free. Wants an NVIDIA card; falls back to CPU and gets slower.",
-          "config": { "whisper_model": "medium", "whisper_device": "cuda" },
+          "config": {
+            "whisper_model": "medium",
+            "whisper_device": "cuda"
+          },
           "default": true,
           "local": true
         },
@@ -58,49 +101,12 @@
           "cost": "Free",
           "verify": "http://127.0.0.1:11434/api/tags",
           "get": "https://ollama.com/download",
-          "config": { "embedding_provider": "ollama", "embedding_model": "nomic-embed-text" },
+          "config": {
+            "embedding_provider": "ollama",
+            "embedding_model": "nomic-embed-text"
+          },
           "default": true,
           "local": true
-        }
-      ]
-    },
-    {
-      "id": "models",
-      "title": "Other models",
-      "blurb": "Only needed if you want a second opinion, or a fallback when Claude is rate-limited.",
-      "items": [
-        {
-          "id": "nim",
-          "name": "NVIDIA NIM",
-          "what": "A free tier of hosted open models. Jarvis falls back to these when Claude is unavailable.",
-          "needs": "key",
-          "secret": "nim-keys.json:keys",
-          "cost": "Free tier, no card required",
-          "get": "https://build.nvidia.com/explore/discover",
-          "hint": "Sign in, open any model, and copy the key from the Get API Key button.",
-          "default": false
-        },
-        {
-          "id": "openai",
-          "name": "OpenAI / Codex",
-          "what": "GPT models, and the Codex CLI for a second coding agent.",
-          "needs": "key",
-          "secret": "config.json:openai_api_key",
-          "cost": "Pay as you go",
-          "get": "https://platform.openai.com/api-keys",
-          "hint": "Create a secret key. It is shown once -- paste it straight in.",
-          "command": "npm i -g @openai/codex",
-          "default": false
-        },
-        {
-          "id": "gemini",
-          "name": "Google Gemini",
-          "what": "Gemini models, with a free tier that is generous for everyday use.",
-          "needs": "key",
-          "secret": "nim-keys.json:gemini_keys",
-          "cost": "Free tier available",
-          "get": "https://aistudio.google.com/apikey",
-          "default": false
         }
       ]
     },
@@ -118,7 +124,9 @@
           "cost": "Free",
           "get": "https://t.me/BotFather",
           "hint": "Send /newbot to BotFather, then paste the token it gives you.",
-          "also": { "config.json:telegram_chat_id": "Your own chat id -- Jarvis obeys only this one." },
+          "also": {
+            "config.json:telegram_chat_id": "Your own chat id -- Jarvis obeys only this one."
+          },
           "default": false
         },
         {

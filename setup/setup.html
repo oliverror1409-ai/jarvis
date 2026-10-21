@@ -151,7 +151,7 @@
 <div id="toast"></div>
 
 <script>
-const API = location.origin.includes('8100') ? '' : 'http://127.0.0.1:8100';
+const API = location.origin.startsWith('http') ? '' : 'http://127.0.0.1:8100';
 let CAT = null;
 const chosen = new Set();
 
@@ -224,7 +224,7 @@ function card(item) {
     // DOM node is a key in a screenshot.
     input.value = '';
     if (r && r.ok) { toast(item.name + ' key saved to ~/.config/jarvis.'); check(el, item); }
-    else toast('Could not save — is the bridge running on 8100?');
+    else toast('Could not save — is the bridge still running?');
   });
 
   return el;
@@ -275,7 +275,7 @@ document.getElementById('save').addEventListener('click', async () => {
     body: JSON.stringify({ enabled: [...chosen] })
   }).catch(() => null);
   toast(r && r.ok ? 'Saved. You can change any of this later in Settings.'
-                  : 'Could not save — is the bridge running on 8100?');
+                  : 'Could not save — is the bridge still running?');
 });
 
 load();
