@@ -1,6 +1,6 @@
 """Prove the change did not alter behaviour on a machine that HAS Claude.
 
-Oliver's own config: explicit routing, Claude on PATH, plenty of quota left.
+A subscriber's config: explicit routing, Claude on PATH, quota to spare.
 Spoken replies must stay on Claude until the weekly window is tight -- the
 whole point of the pressure logic -- and the no-Claude shortcut must not fire.
 """

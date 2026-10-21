@@ -91,7 +91,7 @@
   "llm_chat_timeout_sec": 180,
   "llm_provider": "openai_compatible",
   "local_files_extra_roots": [
-    "D:\\Oliver"
+    "C:\\Users\\you"
   ],
   "location_auto_detect": 0,
   "location_city": "",

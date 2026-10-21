@@ -267,7 +267,7 @@ function Invoke-HudServicePass {
         Write-WatchdogLog -Message ("{0}: port {1} is dead - starting" -f $name, $service.Port) -Level 'WARN'
         # The path is quoted because Start-Process does NOT quote the elements
         # of -ArgumentList, and this repo lives under "Projects Claude". The
-        # child was receiving `-File C:\Users\Oliver\Projects`, failing to find
+        # child was receiving `-File C:\Users\you\Projects`, failing to find
         # it, and exiting before it could write a single line to a log -- which
         # is why open-notebook, brightbean and omniroute were reported dead and
         # restarted every five minutes from 7 September without one of them

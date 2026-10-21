@@ -9,6 +9,8 @@ voice daemon, the watchdog, log rolling -- but it expects a machine that has
 already been set up. This is for the first five minutes.
 
     python start.py              # start, and open it
+    python start.py --background # leave it running with no console window
+    python start.py --stop       # stop one started that way
     python start.py --window     # in a bare window, once installed
     python start.py --port 8200   # somewhere else
     python start.py --no-browser  # headless, or over SSH
@@ -22,6 +24,7 @@ import os
 import shutil
 import socket
 import subprocess
+import time
 import sys
 import webbrowser
 from pathlib import Path
@@ -95,6 +98,49 @@ def port_free(port: int) -> bool:
             return False
 
 
+def windowless_python() -> str:
+    """pythonw.exe where there is one: the same interpreter, no console.
+
+    Falls back to the console build, which still works -- the window is then
+    hidden rather than absent, which is what the shortcut does anyway.
+    """
+    exe = Path(sys.executable)
+    for name in ("pythonw.exe", "pythonw"):
+        candidate = exe.with_name(name)
+        if candidate.exists():
+            return str(candidate)
+    return sys.executable
+
+
+def running_on(port: int) -> bool:
+    """Is a Jarvis bridge already answering here?
+
+    Asks rather than assumes: something else may hold the port, and telling
+    somebody Jarvis is running when it is not wastes their afternoon.
+    """
+    try:
+        import urllib.request
+        with urllib.request.urlopen(
+                "http://127.0.0.1:%d/health" % port, timeout=2) as r:
+            return r.status == 200
+    except Exception:  # noqa: BLE001 -- anything at all means "not ours"
+        return False
+
+
+def ask_it_to_stop(port: int) -> bool:
+    import json as _json
+    import urllib.request
+    req = urllib.request.Request(
+        "http://127.0.0.1:%d/shutdown" % port,
+        data=b"{}", method="POST",
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return _json.loads(r.read() or b"{}").get("stopping", False)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def install(packages: list[str]) -> bool:
     print("Installing: " + ", ".join(packages))
     cmd = [sys.executable, "-m", "pip", "install", *packages]
@@ -112,7 +158,22 @@ def main() -> int:
                          "from the Start menu")
     ap.add_argument("--check", action="store_true",
                     help="report what is missing and exit")
+    ap.add_argument("--background", action="store_true",
+                    help="start it and return, leaving no console window")
+    ap.add_argument("--stop", action="store_true",
+                    help="stop a bridge that is already running")
     args = ap.parse_args()
+
+    if args.stop:
+        if not running_on(args.port):
+            print("Nothing is running on port %d." % args.port)
+            return 0
+        if ask_it_to_stop(args.port):
+            print("Jarvis is stopping.")
+            return 0
+        print("It would not stop. Close its window, or end python.exe in "
+              "Task Manager.")
+        return 1
 
     if sys.version_info < MIN_PYTHON:
         print("Python %d.%d or newer is needed; this is %d.%d."
@@ -149,16 +210,55 @@ def main() -> int:
             return 1
 
     if not port_free(args.port):
-        print("Port %d is already in use. Either Jarvis is running already -- "
-              "open http://127.0.0.1:%d/setup -- or pick another port with "
-              "--port." % (args.port, args.port))
+        # Starting it twice is the likeliest reason to be here, and it is not
+        # an error -- the thing he wanted is already running.
+        if running_on(args.port):
+            url = "http://127.0.0.1:%d/ui" % args.port
+            print("Jarvis is already running. Opening it.")
+            if not args.no_browser:
+                if not (args.window and open_as_app(url)):
+                    webbrowser.open(url)
+            return 0
+        print("Port %d is in use by something that is not Jarvis. Pick "
+              "another with --port." % args.port)
         return 1
 
     env = dict(os.environ, JARVIS_BRIDGE_PORT=str(args.port))
     url = "http://127.0.0.1:%d/setup" % args.port
     print("Jarvis is starting. Setup page: " + url)
-    print("Nothing is configured yet -- that page is where you choose what to "
-          "connect. Ctrl-C here stops it.")
+    # How to stop it depends entirely on how it was started, and saying
+    # "Ctrl-C here" to somebody running it detached is simply wrong.
+    if not args.background:
+        print("Nothing is configured yet -- that page is where you choose "
+              "what to connect. Ctrl-C here stops it.")
+
+    if args.background:
+        # Detached and windowless: it outlives this process, and there is no
+        # console to leave sitting on the taskbar. /shutdown is how it stops,
+        # which `--stop` and the HUD's QUIT both use.
+        flags = 0
+        if os.name == "nt":
+            flags = (getattr(subprocess, "DETACHED_PROCESS", 0)
+                     | getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        subprocess.Popen([windowless_python(), str(BRIDGE)], env=env,
+                         cwd=str(HERE), creationflags=flags,
+                         stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL,
+                         close_fds=True)
+        for _ in range(40):                 # up to 20s for a cold first start
+            if running_on(args.port):
+                break
+            time.sleep(0.5)
+        else:
+            print("It did not come up. Run `python start.py` to see why.")
+            return 1
+        print("Jarvis is running in the background: " + url)
+        print("Stop it with: python start.py --stop   (or QUIT in the app)")
+        if not args.no_browser:
+            if not (args.window and open_as_app(url)):
+                webbrowser.open(url)
+        return 0
 
     proc = subprocess.Popen([sys.executable, str(BRIDGE)], env=env, cwd=str(HERE))
     if not args.no_browser:

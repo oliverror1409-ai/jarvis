@@ -160,6 +160,10 @@
   .banner .bx.install { border: 1px solid rgba(110,220,245,0.45); border-radius: 5px;
     padding: 2px 9px; font-size: 9px; letter-spacing: 2px; cursor: pointer; }
   .banner .bx.install:hover { background: rgba(110,220,245,0.12); }
+  /* Quit is the one destructive thing in that menu, so it does not look
+     like the three navigation entries above it. */
+  .more-item.quit { color: #ff9a6a; border-top: 1px solid rgba(255,255,255,0.08);
+    margin-top: 4px; padding-top: 7px; }
   .banner.upd { color: var(--gold); border-color: rgba(245,184,60,0.35);
     background: linear-gradient(90deg, rgba(50,34,6,0.55), rgba(30,20,4,0.35)); }
   .banner.upd .bx { color: var(--gold); font-size: 10px; letter-spacing: 2px; }
@@ -1292,6 +1296,7 @@
           <button class="more-item" type="button" data-open="settings" role="menuitem" aria-label="Open settings panel">⚑ SETTINGS</button>
           <button class="more-item" type="button" data-open="setup" role="menuitem" aria-label="Open the setup page">⚿ SETUP &amp; KEYS</button>
           <button class="more-item" type="button" data-open="commandlog" role="menuitem" aria-label="Open command log panel">▤ COMMAND LOG</button>
+          <button class="more-item quit" type="button" data-open="quit" role="menuitem" aria-label="Stop Jarvis">⏻ QUIT JARVIS</button>
         </div>
         <button id="viewbtn" class="ph-btn" type="button" aria-label="Switch view" title="Switch view — Ctrl+1 dashboard · Ctrl+2 HUD · Ctrl+3 AR">▣ HUD</button>
       </div>
@@ -2577,6 +2582,27 @@ setInterval(() => {
 
 // ── Toasts: bottom-right, auto-dismiss ~4s. Used for send failures, copy
 // confirmation, export confirmation and stop confirmation. ─────────────
+// Started from the desktop shortcut there is no console to close, so this is
+// the way out. It stops the bridge itself, which ends the whole thing.
+async function quitJarvis() {
+  if (!confirm('Stop Jarvis? The window will stop working until you start it again.')) return;
+  try {
+    const r = await fetch(BRIDGE + '/shutdown', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    if (!r.ok) throw new Error('it answered ' + r.status);
+    document.body.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;'
+      + 'height:100vh;font:600 13px ui-monospace,monospace;letter-spacing:3px;'
+      + 'color:#f5b83c;background:#010204;text-align:center;padding:24px">'
+      + 'JARVIS STOPPED<br><span style="color:#6fd0ff;font-size:11px;'
+      + 'letter-spacing:2px">start it again from the desktop shortcut, '
+      + 'or with python start.py</span></div>';
+  } catch (err) {
+    toast('Could not stop it — ' + err.message, 'err');
+  }
+}
+
 function toast(msg, kind) {
   const t = document.createElement('div');
   t.className = 'toast' + (kind ? ' ' + kind : '');
@@ -2963,7 +2989,7 @@ document.getElementById('clearbtn').addEventListener('click', () => {
   updateScrollPill();
 });
 
-// ── Memory panel: lets Oliver see and correct what Jarvis remembers — the
+// ── Memory panel: lets you see and correct what Jarvis remembers — the
 // diary (daily conversation summaries) and the knowledge graph (structured
 // facts, grouped under the fixed User/Directives/World branches).
 //
@@ -3658,6 +3684,7 @@ moreMenu.addEventListener('click', e => {
   if (btn.dataset.open === 'settings') openSettingsPanel();
   if (btn.dataset.open === 'setup') openSetupPanel();
   else if (btn.dataset.open === 'commandlog') openCommandLogPanel();
+  else if (btn.dataset.open === 'quit') quitJarvis();
 });
 
 // ── Settings panel: honest about what actually works. Two things are
@@ -3668,7 +3695,10 @@ moreMenu.addEventListener('click', e => {
 // labelled, inert read-only entries with the exact file path + a safe
 // BOM-free save recipe — never a form field that looks live but silently
 // does nothing. ─────────────────────────────────────────────────────────
-const JARVIS_CONFIG_PATH = 'C:\\Users\\Oliver\\.config\\jarvis\\config.json';
+// Shown so a person can find the file; built from nothing, because the
+// page cannot read the home directory and a hardcoded one was simply
+// somebody else's machine.
+const JARVIS_CONFIG_PATH = '%USERPROFILE%\\.config\\jarvis\\config.json';
 const BOM_FIX_CMD = `$path = '${JARVIS_CONFIG_PATH}'\n$text = Get-Content -Raw -LiteralPath $path\n[System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))`;
 const SETTINGS_STATS_API = BRIDGE + '/stats';
 const SETTINGS_HEALTH_API = 'http://127.0.0.1:8123/health';
@@ -4622,15 +4652,15 @@ function arfsTestListing(path, page, per) {
   for (let i = 0; i < total; i++) {
     names.push(i < folderCount
       ? { name: `project-folder-${String(i + 1).padStart(2, '0')}`,
-          path: `D:\\Oliver\\test\\folder-${i + 1}`, kind: 'folder' }
+          path: `C:\\test\\folder-${i + 1}`, kind: 'folder' }
       : { name: `document-${String(i - folderCount + 1).padStart(3, '0')}.pdf`,
-          path: `D:\\Oliver\\test\\file-${i + 1}.pdf`, kind: 'file',
+          path: `C:\\test\\file-${i + 1}.pdf`, kind: 'file',
           ext: 'pdf', size: (i + 1) * 1024 * 37 });
   }
   const pages = Math.max(1, Math.ceil(total / per));
   const shown = names.slice(page * per, page * per + per);
   return {
-    ok: true, path: 'D:\\Oliver\\test', up: 'D:\\Oliver',
+    ok: true, path: 'C:\\test', up: 'C:\\',
     folders: shown.filter(n => n.kind === 'folder'),
     files: shown.filter(n => n.kind === 'file'),
     page, pages, per,

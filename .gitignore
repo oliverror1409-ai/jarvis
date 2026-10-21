@@ -38,7 +38,7 @@ agent/skills/
 graphify-out/
 
 # Review artefacts: the video is large and also lives in
-# D:/Oliver/Videos/Screen Recordings. Stills and text stay in the repo.
+# a Videos/Screen Recordings folder. Stills and text stay in the repo.
 review-artefacts/*.mp4
 
 # Render scratch: segments, frames and beds that ffmpeg writes on the way to a

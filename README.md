@@ -91,9 +91,13 @@ powershell -ExecutionPolicy Bypass -File make-shortcut.ps1
 ```
 
 That puts **Jarvis** on your desktop with the right icon. Double-click it and
-the bridge starts and the window opens; the small console window it leaves
-behind is how you stop it. `-Remove` takes the shortcut away again, and
-`-Port 8200` points it somewhere else.
+Jarvis starts in the background and opens — **no console window is left
+behind**, because the shortcut runs the windowless interpreter and the bridge
+detaches from it.
+
+To stop it: **⚙ MORE → ⏻ QUIT JARVIS** inside the app, or `python start.py
+--stop`. `-Remove` takes the shortcut away again, and `-Port 8200` points it
+somewhere else.
 
 ### Talking to it
 
@@ -115,7 +119,11 @@ Things worth knowing:
 
 - The page holds the conversation, so **reloading starts a fresh one**. There
   is no server-side history in a bridge-only install.
-- `Ctrl-C` in the terminal running `start.py` stops everything.
+- **Stopping it:** `Ctrl-C` if you started it with `python start.py`. If you
+  started it from the desktop shortcut there is no console to close, so use
+  **⚙ MORE → ⏻ QUIT JARVIS**, or `python start.py --stop`.
+- `python start.py --background` starts it with no console from a terminal
+  too, and returns straight away.
 - Settings, including every integration you can turn on later, are behind
   **⚙ MORE** in the top right.
 
@@ -205,7 +213,7 @@ is not a fix; assume anything pushed was scraped within the minute.
 | `avatar/ui.html` | The HUD: conversation, machine state, settings |
 | `setup/` | The setup page and the catalogue of integrations |
 | `scripts/check-secrets.py` | Refuses to publish a credential |
-| `make-shortcut.ps1` | Puts Jarvis on the desktop with its icon |
+| `make-shortcut.ps1` | Puts Jarvis on the desktop, console-free |
 | `tests/` | Runnable checks, including the two no-Claude ones above |
 | `restart-jarvis.ps1` | Full restart of bridge, backend, daemon, UI — needs a set-up machine |
 | `services/` | Optional third-party pieces, each its own download |

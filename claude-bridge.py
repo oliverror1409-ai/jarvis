@@ -2,7 +2,7 @@
 
 Runs a local server on port 8100 translating OpenAI-style /v1/chat/completions
 requests into headless `claude -p` calls. Claude Code is authenticated with
-Oliver's claude.ai subscription (OAuth), so requests served through this
+your own claude.ai subscription (OAuth), so requests served through this
 bridge consume the subscription, not API credits.
 
 Models exposed:
@@ -208,7 +208,7 @@ AGENT_HINT = re.compile(
 
 # Work that belongs to the daemon's own `browser` tool: driving a real page.
 # Agent mode substitutes Claude Code's fetching and shell, which reads a page
-# but cannot act as Oliver in his logged-in session — and it discards the
+# but cannot act as you in your logged-in session — and it discards the
 # daemon's tools, so the reply comes back saying no browser tool exists while
 # one is registered. The daemon's tool is also the safer route: allowlisted
 # domains, a confirmation gate on one-way doors, and an audit line per action.
@@ -241,7 +241,7 @@ SIGHT_TASK_HINT = re.compile(
 )
 
 # Work that belongs to the daemon's `inputControl` / `windowControl`: driving
-# the keyboard, the mouse and windows as though Oliver were at the keys.
+# the keyboard, the mouse and windows as though you were at the keys.
 MACHINE_TASK_HINT = re.compile(
     r"\btype\b|\btyping\b|\bwrite (it |this |that )?(in|into)\b|\bpaste\b"
     r"|\bpress\b|\bkeyboard\b|\bkeystrokes?\b|\bhotkey\b"
@@ -574,7 +574,11 @@ def stats() -> dict:
     }
 
 
-USAGE_MONITOR = Path(r"C:\Users\Oliver\Projects Claude\Usage manager\Claude-Usage-Monitor")
+# Optional: a local checkout of Claude-Usage-Monitor, if you have one.
+# Point JARVIS_USAGE_MONITOR at it; without it the usage card simply
+# stays blank, which is why this is not part of the setup page.
+USAGE_MONITOR = Path(os.environ.get("JARVIS_USAGE_MONITOR")
+                     or Path.home() / "Claude-Usage-Monitor")
 # The last figures that were actually good, kept separately from the last
 # attempt. A rate-limited probe must not erase a number that was true five
 # minutes ago: "26%, a few minutes old" is useful, "unavailable" is not.
@@ -1700,6 +1704,31 @@ def reset_workers() -> dict:
     return {"reset": True}
 
 
+# Held so /shutdown can ask the server to stop rather than killing the
+# process out from under its own reply.
+_server: "uvicorn.Server | None" = None
+
+
+@app.post("/shutdown")
+async def shutdown(request: Request) -> dict:
+    """Stop the bridge.
+
+    Guarded like every other write here: a page on another site must not be
+    able to turn someone's assistant off.
+    """
+    _same_machine_only(request)
+    log.info("shutdown requested")
+    if _server is not None:
+        # Graceful: uvicorn finishes this response, then stops serving.
+        _server.should_exit = True
+        return {"stopping": True}
+    # Started some other way (a reloader, a test harness). Say so rather
+    # than pretending it worked.
+    raise HTTPException(status_code=501,
+                        detail="this bridge was not started in a way it can "
+                               "stop itself from; close its window instead")
+
+
 @app.get("/health")
 def health() -> dict:
     return {
@@ -2131,7 +2160,7 @@ def _tools_instruction(tools: list) -> str:
 # NVIDIA NIM — the grunt work behind the reply.
 #
 # Every model call here normally costs a slice of the rolling five-hour window
-# on Oliver's Claude subscription, and running out of that window is what stops
+# on your Claude subscription, and running out of that window is what stops
 # Jarvis answering at all. The classification and housekeeping calls (intent
 # judging, tool routing, diary summaries, knowledge-graph extraction) are the
 # bulk of that traffic and none of them is the voice the user hears, so they
@@ -2810,7 +2839,7 @@ def _worker_cmd(mode: str) -> list[str]:
         "--verbose",  # required by the CLI for stream-json output in -p mode
         # Token deltas, so a reply can start being spoken before it finishes.
         "--include-partial-messages",
-        # Ignore Oliver's personal Claude Code settings (hooks, style modes).
+        # Ignore your personal Claude Code settings (hooks, style modes).
         "--setting-sources", "project",
         # The per-machine sections (cwd, env, git status) differ between two
         # cold processes, and everything after them in the prompt is then
@@ -3455,7 +3484,7 @@ async def chat_completions(request: Request):
 
     if agent or canva:
         system_prompt = (system_prompt + "\n\n" if system_prompt else "") + (
-            "You have full control of Oliver's own Windows PC: the shell, the "
+            "You have full control of the owner's own Windows PC: the shell, the "
             "filesystem, search, the web, and any Canva tools. Use them.\n"
             "FINISH THE JOB BEFORE YOU SPEAK. Here you have your own tools "
             "and can use as many as you need, so he asked for an outcome, not "
@@ -3800,4 +3829,8 @@ if __name__ == "__main__":
     # The card should show his last known figures the moment the bridge
     # is up, rather than an error until the first lookup happens to land.
     _load_last_good()
-    uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="warning")
+    # Built explicitly rather than uvicorn.run(), so /shutdown has a server
+    # object to ask. run() keeps it to itself.
+    _server = uvicorn.Server(uvicorn.Config(
+        app, host="127.0.0.1", port=PORT, log_level="warning"))
+    _server.run()

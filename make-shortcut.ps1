@@ -37,20 +37,24 @@ if (-not (Test-Path $starter)) {
     Write-Error "start.py is not next to this script. Run it from inside the Jarvis folder."
 }
 
-# Prefer the launcher: it survives the user upgrading Python, which a path to
-# a specific python.exe does not.
+# pythonw runs with no console at all, which is the point: the shortcut
+# starts Jarvis in the background and nothing is left on the taskbar. pyw.exe
+# is the launcher's windowless twin and survives a Python upgrade, which a
+# path to one pythonw.exe does not.
 $python = $null
-$launcher = Join-Path $env:WINDIR "py.exe"
-if (Test-Path $launcher) {
-    $python = $launcher
+$argPrefix = ""
+$pyw = Join-Path $env:WINDIR "pyw.exe"
+if (Test-Path $pyw) {
+    $python = $pyw
     $argPrefix = "-3 "
 } else {
     $cmd = Get-Command python -ErrorAction SilentlyContinue
     if (-not $cmd) {
         Write-Error "Python is not on PATH. Install it from python.org and tick 'Add Python to PATH'."
     }
-    $python = $cmd.Source
-    $argPrefix = ""
+    # Same interpreter, windowless build, which sits beside python.exe.
+    $candidate = Join-Path (Split-Path $cmd.Source -Parent) "pythonw.exe"
+    $python = if (Test-Path $candidate) { $candidate } else { $cmd.Source }
 }
 
 $icon = Join-Path $here "avatar\jarvis.ico"
@@ -59,14 +63,15 @@ if (-not (Test-Path $icon)) { $icon = $python }
 $shell = New-Object -ComObject WScript.Shell
 $sc = $shell.CreateShortcut($link)
 $sc.TargetPath = $python
-$sc.Arguments = $argPrefix + '"' + $starter + '" --port ' + $Port
+$sc.Arguments = $argPrefix + '"' + $starter + '" --port ' + $Port + ' --background' 
 $sc.WorkingDirectory = $here
 $sc.IconLocation = $icon
-$sc.Description = "Start Jarvis and open it in its own window"
-# 7 = minimized. The console still exists, so closing it stops Jarvis
-# properly, but it does not sit in front of the window you actually want.
-$sc.WindowStyle = 7
+$sc.Description = "Start Jarvis and open it"
+# 1 = normal. There is no console to hide now: pythonw has none, and the
+# bridge is detached, so the shortcut starts it and goes away.
+$sc.WindowStyle = 1
 $sc.Save()
 
 Write-Output "Shortcut created: $link"
-Write-Output "Double-click it to start Jarvis. Closing the small console window stops it."
+Write-Output "Double-click it to start Jarvis. No console window is left behind."
+Write-Output "To stop it: QUIT inside the app, or 'python start.py --stop' here."
