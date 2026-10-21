@@ -87,8 +87,17 @@ start.py`, then open the installed app.
 So starting it is a double-click and not a command:
 
 ```
-powershell -ExecutionPolicy Bypass -File make-shortcut.ps1
+python start.py --shortcut
 ```
+
+(or `powershell -ExecutionPolicy Bypass -File make-shortcut.ps1`, which does
+the same thing.)
+
+Run it with the **same `python` you installed the packages with**. That is the
+whole trick: Windows often has several Pythons, and the shortcut has to use
+the one holding `fastapi` and `uvicorn`. `start.py` writes the shortcut using
+the interpreter that is running it, so it cannot pick the wrong one, and it
+refuses to write a shortcut at all until the packages are present.
 
 That puts **Jarvis** on your desktop with the right icon. Double-click it and
 Jarvis starts in the background and opens — **no console window is left
@@ -229,6 +238,14 @@ is not running. `python start.py`, then check
 **`python start.py` says a package is missing and pip fails.** Install them
 yourself with `python -m pip install -r requirements.txt`. On Linux, a distro
 Python may need `python3 -m venv .venv` first.
+
+**It runs from the command prompt, but the desktop shortcut does nothing.**
+Almost always two different Pythons: `pip install` went to one and the
+shortcut launched another, which cannot import the packages and exits at
+once. Remake the shortcut with `python start.py --shortcut`, using the same
+`python` that works in your terminal. Whatever went wrong is in
+`~/.config/jarvis/start.log`, and a failed start now also says so in a dialog
+rather than failing in silence.
 
 **It answers "I have no model to think with yet".** Working as intended: no
 provider is configured. Add a NIM or Gemini key on the setup page.
