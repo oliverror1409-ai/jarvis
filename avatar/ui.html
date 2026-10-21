@@ -2269,7 +2269,8 @@ function tickThinking() {
 setInterval(tickThinking, 1000);
 
 function updateTitle() {
-  document.title = (!connected && !voiceAlive) ? 'JARVIS — text only'
+  document.title = (!connected && !voiceAlive)
+    ? (Voice.canSpeak ? 'JARVIS' : 'JARVIS — text only')
     : !connected ? '○ JARVIS — offline'
     : speaking ? '● JARVIS — speaking' : 'JARVIS';
 }
@@ -2334,15 +2335,20 @@ async function poll() {
         // A missing voice daemon is not a fault in a text-only install, and
         // "UNREACHABLE - retrying" reads like one. Say what is true instead.
         const label = document.querySelector('#banner-voice span');
-        if (label) label.textContent =
-          'TEXT ONLY \u2014 no voice engine installed; typing works';
+        // It does have a voice now -- the browser's. Saying "text only"
+        // while it is reading replies aloud is simply untrue.
+        if (label) label.textContent = Voice.canSpeak
+          ? 'BROWSER VOICE \u2014 press MIC to speak; no wake word yet'
+          : 'TEXT ONLY \u2014 no voice engine installed; typing works';
         document.getElementById('banner-voice').classList.add('calm');
       }
       if (!voiceBannerDismissed) setBanner('banner-voice', true);
     }
   }
   statusEl.className = !connected ? 'offline' : speaking ? 'speaking' : (conversationOpen ? 'conversing' : '');
-  statusText.textContent = (!connected && !voiceAlive) ? 'Text only — type below'
+  statusText.textContent = (!connected && !voiceAlive)
+    ? (Voice.listening ? 'Listening…'
+       : Voice.canSpeak ? 'Ready — type, or press MIC' : 'Text only — type below')
     : !connected ? 'Starting voice engine…'
     : speaking ? 'Speaking'
     : paused ? 'Mic paused'
