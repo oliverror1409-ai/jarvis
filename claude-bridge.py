@@ -565,6 +565,11 @@ def stats() -> dict:
             if w.proc is not None and w.proc.poll() is None
         ),
         "backend_up": _backend_up(),
+        # So the HUD can stop calling a free hosted key a subscription, and
+        # can tell "no backend installed" apart from "no model configured" --
+        # the first is normal in a bridge-only install, the second is a fault.
+        "claude_cli": _claude_present(),
+        "model_ready": _claude_present() or _have_fallback(),
         "uptime_s": time.time() - BOOT_TS,
     }
 

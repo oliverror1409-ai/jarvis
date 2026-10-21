@@ -51,6 +51,33 @@ page. Everything under it is optional and can be turned on later from
 
 ---
 
+## Using it
+
+Press **Save and continue** on the setup page and it opens the assistant. It
+lives at **<http://127.0.0.1:8100/ui>** — that is the whole app, and the only
+address worth bookmarking.
+
+Type in the box at the bottom and press Enter. Replies arrive in the feed.
+The left half is the face; the right half is the conversation, the machine
+monitor and the settings.
+
+**Without the voice daemon this is a text assistant**, and the HUD says so in
+the bar across the top. Speech in (Whisper), speech out (Kokoro), the wake
+word and the desktop tools all belong to a separate component that is not in
+this repository yet. Everything you see in the HUD that reaches for it —
+the MIC button, dictation, *Launch*, the file browser — will not do anything
+until it is installed. The conversation itself does not need it.
+
+Things worth knowing:
+
+- The page holds the conversation, so **reloading starts a fresh one**. There
+  is no server-side history in a bridge-only install.
+- `Ctrl-C` in the terminal running `start.py` stops everything.
+- Settings, including every integration you can turn on later, are behind
+  **⚙ MORE** in the top right.
+
+---
+
 ## What you can connect
 
 **The brain — one of these, and only one is needed:**

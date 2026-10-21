@@ -147,6 +147,10 @@
     background: linear-gradient(90deg, rgba(70,20,20,0.55), rgba(40,10,10,0.35));
     border: 1px solid rgba(255,120,120,0.35); border-radius: 8px; padding: 6px 11px; }
   .banner.show { display: flex; }
+  /* Text-only is a configuration, not a failure, so it does not use the red. */
+  .banner.calm { color: var(--cyan); border-color: rgba(110,220,245,0.3);
+    background: linear-gradient(90deg, rgba(8,42,52,0.55), rgba(5,26,32,0.35)); }
+  .banner.calm .bx { color: var(--cyan); }
   .banner.upd { color: var(--gold); border-color: rgba(245,184,60,0.35);
     background: linear-gradient(90deg, rgba(50,34,6,0.55), rgba(30,20,4,0.35)); }
   .banner.upd .bx { color: var(--gold); font-size: 10px; letter-spacing: 2px; }
@@ -2255,9 +2259,14 @@ function tickThinking() {
 setInterval(tickThinking, 1000);
 
 function updateTitle() {
-  document.title = !connected ? '○ JARVIS — offline' : speaking ? '● JARVIS — speaking' : 'JARVIS';
+  document.title = (!connected && !voiceAlive) ? 'JARVIS — text only'
+    : !connected ? '○ JARVIS — offline'
+    : speaking ? '● JARVIS — speaking' : 'JARVIS';
 }
 
+// Three failed probes is the same threshold the banner uses, so the HUD
+// switches to text-only at the moment it would have started complaining.
+let voiceAlive = true;
 let faceFailCount = 0, bridgeFailCount = 0;
 let voiceBannerDismissed = false, bridgeBannerDismissed = false;
 function setBanner(id, show) { document.getElementById(id).classList.toggle('show', show); }
@@ -2272,6 +2281,7 @@ async function poll() {
   try {
     const d = await (await fetch('http://127.0.0.1:8123/face-state', { cache: 'no-store' })).json();
     speaking = d.speaking; connected = true;
+    voiceAlive = true;
     // Whether the wake word has opened a conversation. Without this the user
     // cannot tell if follow-ups will be heard or need "Jarvis" again.
     conversationOpen = !!d.conversation;
@@ -2308,10 +2318,22 @@ async function poll() {
   } catch {
     speaking = false; connected = false; ok = false;
     faceFailCount++;
-    if (faceFailCount >= 3 && !voiceBannerDismissed) setBanner('banner-voice', true);
+    if (faceFailCount >= 3) {
+      if (voiceAlive) {
+        voiceAlive = false;
+        // A missing voice daemon is not a fault in a text-only install, and
+        // "UNREACHABLE - retrying" reads like one. Say what is true instead.
+        const label = document.querySelector('#banner-voice span');
+        if (label) label.textContent =
+          'TEXT ONLY \u2014 no voice engine installed; typing works';
+        document.getElementById('banner-voice').classList.add('calm');
+      }
+      if (!voiceBannerDismissed) setBanner('banner-voice', true);
+    }
   }
   statusEl.className = !connected ? 'offline' : speaking ? 'speaking' : (conversationOpen ? 'conversing' : '');
-  statusText.textContent = !connected ? 'Starting voice engine…'
+  statusText.textContent = (!connected && !voiceAlive) ? 'Text only — type below'
+    : !connected ? 'Starting voice engine…'
     : speaking ? 'Speaking'
     : paused ? 'Mic paused'
     : conversationOpen ? 'In conversation'
@@ -2325,7 +2347,7 @@ const MODE_LABEL = { fast: 'quick', chat: 'thinking', agent: 'web/agent', canva:
 async function activityPoll() {
   let ok = true;
   try {
-    const d = await (await fetch('http://127.0.0.1:8100/activity', { cache: 'no-store' })).json();
+    const d = await (await fetch(BRIDGE + '/activity', { cache: 'no-store' })).json();
     const items = d.activity || [];
     // A request still in flight (done == null) keeps the ticker on "working"
     // however long it runs — canva/agent jobs can take minutes. Prefer the
@@ -2364,7 +2386,7 @@ async function activityPoll() {
 async function telemetry() {
   let ok = true;
   try {
-    const s = await (await fetch('http://127.0.0.1:8100/stats', { cache: 'no-store' })).json();
+    const s = await (await fetch(BRIDGE + '/stats', { cache: 'no-store' })).json();
     const g = s.gpu;
     if (g) {
       document.getElementById('s-gpu').textContent = Math.round(g.util) + '%';
@@ -2383,7 +2405,15 @@ async function telemetry() {
     document.getElementById('b-req').style.width = Math.min(100, s.requests * 2) + '%';
     const link = document.getElementById('linkstat');
     link.className = 'lstat' + (s.backend_up ? '' : ' down');
-    link.lastChild.textContent = s.backend_up ? 'SUBSCRIPTION · LIVE' : 'BACKEND · DOWN';
+    // Three different things used to read as one red BACKEND DOWN: no
+    // OpenJarvis backend (normal in a bridge-only install), no subscription
+    // (normal on a free key), and no model at all (the only real fault).
+    link.lastChild.textContent =
+        s.model_ready === false ? 'NO MODEL · OPEN SETUP'
+      : s.backend_up ? (s.claude_cli === false ? 'HOSTED MODEL · LIVE'
+                                               : 'SUBSCRIPTION · LIVE')
+      : s.model_ready ? 'BRIDGE ONLY · LIVE'
+      : 'BACKEND · DOWN';
     document.getElementById('avglat').textContent =
       (s.avg_latency_s != null) ? `AVG ${Number(s.avg_latency_s).toFixed(1)}s` : '';
     bridgeFailCount = 0; bridgeBannerDismissed = false; setBanner('banner-bridge', false);
@@ -2449,7 +2479,7 @@ let lastInteraction = Date.now();
 ['pointerdown', 'keydown', 'wheel'].forEach(ev =>
   window.addEventListener(ev, () => { lastInteraction = Date.now(); }, { passive: true }));
 async function versionPoll() {
-  const r = await fetch('http://127.0.0.1:8100/ui-version', { cache: 'no-store' });
+  const r = await fetch(BRIDGE + '/ui-version', { cache: 'no-store' });
   const { version } = await r.json();
   if (!version) return;
   if (uiVersion === null) { uiVersion = version; return; }
@@ -2572,21 +2602,67 @@ function historyDown() {
 // sendText() is the shared core: the dashboard textarea, the HUD command line
 // and the AR input pill all funnel through it so history and error handling
 // behave identically in every view.
+// Without the voice daemon there is nobody to hold the conversation, so the
+// page keeps it: the bridge is stateless per request and needs the history
+// sent back each turn. Trimmed to the last 20 turns, which is the most the
+// system prompt plus context can carry comfortably.
+const bridgeHistory = [];
+
+async function sendViaBridge(text) {
+  const now = Date.now() / 1000;
+  appendFeedMsg({ role: 'user', text, t: now });
+  feedEl.scrollTop = feedEl.scrollHeight;
+  ensureThinking();
+  bridgeHistory.push({ role: 'user', content: text });
+  while (bridgeHistory.length > 40) bridgeHistory.shift();
+  try {
+    const r = await fetch(BRIDGE + '/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-subscription',
+                             messages: bridgeHistory }),
+    });
+    if (!r.ok) throw new Error('bridge said ' + r.status);
+    const d = await r.json();
+    const reply = ((d.choices || [])[0] || {}).message || {};
+    const said = (reply.content || '').trim() || '(an empty reply)';
+    bridgeHistory.push({ role: 'assistant', content: said });
+    removeThinking();
+    appendFeedMsg({ role: 'jarvis', text: said, t: Date.now() / 1000 });
+    feedEl.scrollTop = feedEl.scrollHeight;
+  } catch (err) {
+    removeThinking();
+    // The turn did not happen, so it must not stay in the history or every
+    // later turn re-sends a question that was never answered.
+    bridgeHistory.pop();
+    appendFeedMsg({ role: 'jarvis', t: Date.now() / 1000,
+      text: 'I could not reach a model. Check the setup page at '
+          + BRIDGE.replace(/^https?:\/\//, '') + '/setup — a provider needs a key.' });
+    toast('No answer — ' + err.message, 'err');
+  }
+}
+
 async function sendText(text) {
   text = (text || '').trim();
   if (!text) return;
   cmdHistory.push(text);
   if (cmdHistory.length > 50) cmdHistory.shift();
   historyIndex = -1; historyDraft = '';
-  try {
-    const r = await fetch('http://127.0.0.1:8123/say', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    if (!r.ok) throw new Error('bad status');
-  } catch {
-    toast('Failed to send — voice engine unreachable', 'err');
+  // The daemon owns the conversation when it is running: it speaks the reply,
+  // drives the face and writes the feed that poll() reads. Only when it is
+  // absent does the page talk to the bridge itself.
+  if (voiceAlive) {
+    try {
+      const r = await fetch('http://127.0.0.1:8123/say', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!r.ok) throw new Error('bad status');
+      return;
+    } catch {
+      // Fall through: it answered the probe and died, or is mid-restart.
+    }
   }
+  await sendViaBridge(text);
 }
 function sendTyped() {
   const text = typebox.value.trim();
@@ -2994,7 +3070,11 @@ memBody.addEventListener('click', e => {
 // polled every 60s only (a remote API sits behind it), with a client-side
 // per-second countdown so the reset time doesn't feel stale between polls.
 // Degrades quietly to a dim "usage unavailable" — never a broken empty bar.
-const USAGE_API = 'http://127.0.0.1:8100/usage';
+// Same-origin when the bridge served this page, which is how /ui is reached,
+// so --port keeps working. The literal is only for opening the file directly.
+const BRIDGE = location.protocol.startsWith('http') ? location.origin
+                                                    : 'http://127.0.0.1:8100';
+const USAGE_API = BRIDGE + '/usage';
 let usageOk = false, usageWarned90 = false, usageSessionResetMs = null, usageWeekResetMs = null;
 // How old the figures on screen actually are. Anthropic rate-limits the
 // lookup behind /usage, so the bridge serves the last GOOD numbers for up to
@@ -3435,7 +3515,7 @@ moreMenu.addEventListener('click', e => {
 // does nothing. ─────────────────────────────────────────────────────────
 const JARVIS_CONFIG_PATH = 'C:\\Users\\Oliver\\.config\\jarvis\\config.json';
 const BOM_FIX_CMD = `$path = '${JARVIS_CONFIG_PATH}'\n$text = Get-Content -Raw -LiteralPath $path\n[System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))`;
-const SETTINGS_STATS_API = 'http://127.0.0.1:8100/stats';
+const SETTINGS_STATS_API = BRIDGE + '/stats';
 const SETTINGS_HEALTH_API = 'http://127.0.0.1:8123/health';
 
 const settingsOverlay = document.getElementById('settingsOverlay');
@@ -5139,7 +5219,7 @@ function setView(v, persist) {
     const btns = local();
     const urls = [...new Set(btns.map(b => b.dataset.app))];
     try {
-      const r = await fetch('http://127.0.0.1:8100/local-health', {
+      const r = await fetch(BRIDGE + '/local-health', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urls }), cache: 'no-store',
       });
@@ -5399,7 +5479,7 @@ if (TEST) (() => {
 // which is why the age is on the card rather than implied to be live.
 async function pollCodexUsage() {
   try {
-    const res = await fetch('http://127.0.0.1:8100/codex-usage', { cache: 'no-store' });
+    const res = await fetch(BRIDGE + '/codex-usage', { cache: 'no-store' });
     const d = await res.json();
     const set = (id, pct) => {
       const el = document.getElementById(id);
@@ -5450,7 +5530,7 @@ setInterval(pollCodexUsage, 60000);
 // hidden window has its timers throttled.
 async function pollBeszel() {
   try {
-    const res = await fetch('http://127.0.0.1:8100/beszel', { cache: 'no-store' });
+    const res = await fetch(BRIDGE + '/beszel', { cache: 'no-store' });
     const d = await res.json();
     const set = (id, pct, text) => {
       const el = document.getElementById(id);
@@ -5487,7 +5567,7 @@ document.getElementById('hud-bz-btn').addEventListener('click', async () => {
   const was = btn.textContent;
   btn.textContent = '...';
   try {
-    const d = await (await fetch('http://127.0.0.1:8100/beszel/review',
+    const d = await (await fetch(BRIDGE + '/beszel/review',
                                  { cache: 'no-store' })).json();
     if (!d.ok) { toast('Server: ' + (d.error || 'unavailable'), 'err'); return; }
     const lines = d.notes.concat(d.actions.length ? d.actions : ['nothing needs doing']);
@@ -6559,7 +6639,7 @@ document.getElementById('hud-bz-btn').addEventListener('click', async () => {
   // ── Data ─────────────────────────────────────────────────────────────────
   async function pollMachine() {
     try {
-      const d = await (await fetch('http://127.0.0.1:8100/pc-graph?limit=900',
+      const d = await (await fetch(BRIDGE + '/pc-graph?limit=900',
                                    { cache: 'no-store' })).json();
       if (!d || !d.ok) return;
       nodes = d.nodes || [];
@@ -6592,7 +6672,7 @@ document.getElementById('hud-bz-btn').addEventListener('click', async () => {
 
   async function pollActions() {
     try {
-      const d = await (await fetch(`http://127.0.0.1:8100/events?since=${seq}`,
+      const d = await (await fetch(`${BRIDGE}/events?since=${seq}`,
                                    { cache: 'no-store' })).json();
       if (!d || !d.ok) return;
       seq = d.seq;
@@ -6625,7 +6705,7 @@ document.getElementById('hud-bz-btn').addEventListener('click', async () => {
     const was = button.textContent;
     button.textContent = '...';
     try {
-      const plan = await (await fetch('http://127.0.0.1:8100/beszel/clean',
+      const plan = await (await fetch(BRIDGE + '/beszel/clean',
                                       { cache: 'no-store' })).json();
       if (!plan.ok) { toast('Server: ' + (plan.error || 'unavailable'), 'err'); return; }
       const holding = (plan.reclaimable || []).join(' · ') || 'nothing reclaimable';
@@ -6640,7 +6720,7 @@ document.getElementById('hud-bz-btn').addEventListener('click', async () => {
         return;
       }
       button.textContent = 'cleaning';
-      const done = await (await fetch('http://127.0.0.1:8100/beszel/clean?apply=true',
+      const done = await (await fetch(BRIDGE + '/beszel/clean?apply=true',
                                       { cache: 'no-store' })).json();
       if (!done.ok) { toast('Server clean failed: ' + (done.error || ''), 'err'); return; }
       toast(`Freed ${done.freed_mb} MB · disk now ${done.disk}`);
@@ -6693,7 +6773,7 @@ document.getElementById('hud-bz-btn').addEventListener('click', async () => {
     daemon: 'Daemon', backend: 'Backend' };
   async function poll() {
     try {
-      const d = await (await fetch('http://127.0.0.1:8100/events?since=0',
+      const d = await (await fetch(BRIDGE + '/events?since=0',
                                    { cache: 'no-store' })).json();
       if (!d || !d.ok) return;
       // Collapse a run of the same hop into one row with a count. The diary

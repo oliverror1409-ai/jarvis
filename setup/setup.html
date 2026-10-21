@@ -274,8 +274,11 @@ document.getElementById('save').addEventListener('click', async () => {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ enabled: [...chosen] })
   }).catch(() => null);
-  toast(r && r.ok ? 'Saved. You can change any of this later in Settings.'
-                  : 'Could not save — is the bridge still running?');
+  if (!(r && r.ok)) { toast('Could not save — is the bridge still running?'); return; }
+  // "Save and continue" continued nowhere, which left people on a finished
+  // setup page with no idea the assistant itself is one link away.
+  toast('Saved. Opening Jarvis — you can change any of this later in Settings.');
+  setTimeout(() => { location.href = API + '/ui'; }, 900);
 });
 
 load();
