@@ -67,6 +67,18 @@ gets a separate browser profile, so it never touches your tabs, extensions or
 session, and closing it closes nothing else. `python start.py --tab` forces an
 ordinary tab instead, and if no Chromium is installed it falls back to one.
 
+### Installing it properly
+
+In the Jarvis window, open the **...** menu and choose **Install Jarvis**
+(Edge calls it *Apps -> Install this site as an app*; Chrome shows an install
+icon in the address bar). It then behaves like any other installed program: a
+Start menu entry, its own icon, pinnable to the taskbar, and no browser
+furniture anywhere.
+
+It still needs the bridge running underneath -- it is your machine doing the
+work, not a website -- so start it with the shortcut below or `python
+start.py`, then open the installed app.
+
 ### A desktop shortcut
 
 So starting it is a double-click and not a command:

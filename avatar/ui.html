@@ -6,6 +6,10 @@
 <title>JARVIS</title>
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
 <link rel="icon" type="image/png" sizes="256x256" href="/jarvis.png">
+<!-- Lets Edge and Chrome offer "Install Jarvis": a Start menu entry and its
+     own window, rather than a bookmark that opens a browser. -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#010204">
 <style>
   * { box-sizing: border-box; }
   :root {
@@ -6862,6 +6866,17 @@ document.getElementById('hud-bz-btn').addEventListener('click', async () => {
     else window.jarvisGraph.refit();
   });
 })();
+</script>
+<script>
+// Registering the worker is what completes the install criteria. It caches
+// nothing (see sw.js), so this cannot serve a stale HUD after an update.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Not fatal: without it Jarvis still runs, it just cannot be installed.
+    });
+  });
+}
 </script>
 </body>
 </html>

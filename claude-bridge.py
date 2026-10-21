@@ -1998,6 +1998,38 @@ def ui_version() -> dict:
         return {"version": 0}
 
 
+@app.get("/manifest.webmanifest")
+def web_manifest() -> FileResponse:
+    """What makes Edge and Chrome offer to install this properly.
+
+    With it, Jarvis installs like any other application: a Start menu entry,
+    its own window with no browser furniture, its own icon, pinnable to the
+    taskbar. Without it the best on offer is a shortcut that opens a browser.
+    """
+    return FileResponse(ASSET_DIR / "manifest.webmanifest",
+                        media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def service_worker() -> FileResponse:
+    """Required for installability, and deliberately does nothing else.
+
+    A worker that cached assets would serve yesterday's HUD after a git pull
+    and be very hard to explain, so this one only passes fetches through.
+    """
+    return FileResponse(ASSET_DIR / "sw.js", media_type="text/javascript")
+
+
+@app.get("/jarvis-192.png")
+def app_icon_192() -> FileResponse:
+    return FileResponse(ASSET_DIR / "jarvis-192.png", media_type="image/png")
+
+
+@app.get("/jarvis-512.png")
+def app_icon_512() -> FileResponse:
+    return FileResponse(ASSET_DIR / "jarvis-512.png", media_type="image/png")
+
+
 @app.get("/favicon.ico")
 def favicon() -> FileResponse:
     """The icon the app window and the taskbar show.
