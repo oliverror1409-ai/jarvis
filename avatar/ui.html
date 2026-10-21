@@ -2675,6 +2675,16 @@ const Voice = {
     speaking = false; updateTitle();
   },
 
+  // Worth knowing before the button is pressed: a machine with no input
+  // device fails at the recogniser with a cryptic error, and the button can
+  // say so instead.
+  async hasMicrophone() {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      return all.some(d => d.kind === 'audioinput');
+    } catch { return true; }   // unknown is not a reason to block the attempt
+  },
+
   start() {
     if (!this.canHear || this.listening) return false;
     const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2686,10 +2696,23 @@ const Voice = {
       if (said) sendText(said);
     };
     r.onerror = (e) => {
-      // A refused microphone is the common one and deserves its own words.
-      toast(e.error === 'not-allowed'
-        ? 'Microphone blocked — allow it for this page and try again'
-        : 'Could not hear that (' + e.error + ')', 'err');
+      // Each of these means something different to the person holding the
+      // laptop, and "Could not hear that (audio-capture)" tells them none of
+      // it. Measured against Edge and Chrome on a machine with no microphone,
+      // which is how audio-capture turned up in the first place.
+      const why = {
+        'audio-capture': 'No microphone found — plug one in, or check Windows '
+                       + 'sound settings has an input device',
+        'not-allowed': 'Microphone blocked — allow it for this page and try again',
+        'service-not-allowed': 'Your browser refused the speech service; Edge '
+                             + 'or Chrome signed in usually works',
+        'network': 'Speech recognition could not reach its service — it needs '
+                 + 'the internet, unlike the rest of Jarvis',
+        'no-speech': "Didn't catch that, sir — press MIC and speak again",
+        'aborted': null,   // he stopped it himself; saying so is noise
+      }[e.error];
+      if (why === null) return;
+      toast(why || ('Could not hear that (' + e.error + ')'), 'err');
     };
     r.onend = () => { this.listening = false; this.rec = null; paintVoice(); };
     try { r.start(); } catch { return false; }
@@ -2864,7 +2887,12 @@ async function togglePause() {
       toast('This browser cannot listen — Edge or Chrome can', 'err');
       return;
     }
-    if (Voice.listening) Voice.stopHearing(); else Voice.start();
+    if (Voice.listening) { Voice.stopHearing(); return; }
+    if (!await Voice.hasMicrophone()) {
+      toast('No microphone on this machine — typing still works', 'err');
+      return;
+    }
+    Voice.start();
     return;
   }
   try {
