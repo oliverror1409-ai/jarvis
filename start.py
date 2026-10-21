@@ -8,8 +8,8 @@ imports, installs them on request, starts the bridge and opens the setup page.
 voice daemon, the watchdog, log rolling -- but it expects a machine that has
 already been set up. This is for the first five minutes.
 
-    python start.py              # start, in its own window
-    python start.py --tab        # in an ordinary browser tab instead
+    python start.py              # start, and open it
+    python start.py --window     # in a bare window, once installed
     python start.py --port 8200   # somewhere else
     python start.py --no-browser  # headless, or over SSH
     python start.py --check       # say what is missing and stop
@@ -105,8 +105,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Start Jarvis.")
     ap.add_argument("--port", type=int, default=8100)
     ap.add_argument("--no-browser", action="store_true")
-    ap.add_argument("--tab", action="store_true",
-                    help="open in an ordinary browser tab, not its own window")
+    ap.add_argument("--window", action="store_true",
+                    help="open in a bare window instead of a tab. A window has "
+                         "no toolbar, so the browser cannot offer to install "
+                         "Jarvis from one -- install it first, then launch it "
+                         "from the Start menu")
     ap.add_argument("--check", action="store_true",
                     help="report what is missing and exit")
     args = ap.parse_args()
@@ -164,7 +167,7 @@ def main() -> int:
         try:
             proc.wait(timeout=1.5)
         except subprocess.TimeoutExpired:
-            if args.tab or not open_as_app(url):
+            if not (args.window and open_as_app(url)):
                 webbrowser.open(url)
         else:
             print("The bridge exited immediately. Its reason is above.")

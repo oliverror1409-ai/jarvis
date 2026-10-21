@@ -155,6 +155,11 @@
   .banner.calm { color: var(--cyan); border-color: rgba(110,220,245,0.3);
     background: linear-gradient(90deg, rgba(8,42,52,0.55), rgba(5,26,32,0.35)); }
   .banner.calm .bx { color: var(--cyan); }
+  /* The install affordance is an action, not a dismissal, so it reads as a
+     button rather than the banners' little x. */
+  .banner .bx.install { border: 1px solid rgba(110,220,245,0.45); border-radius: 5px;
+    padding: 2px 9px; font-size: 9px; letter-spacing: 2px; cursor: pointer; }
+  .banner .bx.install:hover { background: rgba(110,220,245,0.12); }
   .banner.upd { color: var(--gold); border-color: rgba(245,184,60,0.35);
     background: linear-gradient(90deg, rgba(50,34,6,0.55), rgba(30,20,4,0.35)); }
   .banner.upd .bx { color: var(--gold); font-size: 10px; letter-spacing: 2px; }
@@ -1239,6 +1244,7 @@
     <span>Interface updated — reload to see the changes</span>
     <span><button type="button" class="bx" id="update-now" aria-label="Reload now">Reload</button><button type="button" class="bx" id="update-later" aria-label="Dismiss">✕</button></span>
   </div>
+  <div id="banner-install" class="banner calm"><span>INSTALL JARVIS AS AN APP \u2014 START MENU, OWN ICON, NO BROWSER</span><button class="bx install" type="button">INSTALL</button></div>
   <div id="banner-voice" class="banner"><span>VOICE ENGINE UNREACHABLE — retrying</span><button class="bx" type="button" aria-label="Dismiss voice engine warning" title="Dismiss">×</button></div>
     <div id="banner-bridge" class="banner"><span>BRIDGE UNREACHABLE — retrying</span><button class="bx" type="button" aria-label="Dismiss bridge warning" title="Dismiss">×</button></div>
     <div id="topbar">
@@ -2612,6 +2618,100 @@ function historyDown() {
 // system prompt plus context can carry comfortably.
 const bridgeHistory = [];
 
+// ── Voice, borrowed from the browser ────────────────────────────────────
+// Only ever used when the voice daemon is absent. Speaking costs nothing and
+// stays on the machine; listening does not, and is opt-in for that reason.
+const Voice = {
+  canSpeak: 'speechSynthesis' in window,
+  canHear: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+  speakOn: localStorage.getItem('jarvis-speak') !== 'off',
+  rec: null,
+  listening: false,
+  _voice: undefined,
+
+  // Pick once, lazily: the list is empty until the engine has loaded, and on
+  // some machines that happens after the first call.
+  pick() {
+    if (this._voice !== undefined) return this._voice;
+    const all = speechSynthesis.getVoices();
+    if (!all.length) return null;       // try again on the next utterance
+    const score = (v) => {
+      let n = 0;
+      if (/^en[-_]GB/i.test(v.lang)) n += 4;        // the accent he built for
+      else if (/^en/i.test(v.lang)) n += 2;
+      if (/\b(male|george|ryan|daniel|arthur|thomas)\b/i.test(v.name)) n += 3;
+      if (/natural|neural|online/i.test(v.name)) n += 2;   // far better ones
+      if (v.localService) n += 1;
+      return n;
+    };
+    this._voice = all.slice().sort((a, b) => score(b) - score(a))[0] || null;
+    return this._voice;
+  },
+
+  speak(text) {
+    if (!this.canSpeak || !this.speakOn || !text) return;
+    try {
+      speechSynthesis.cancel();
+      // Read what a person would hear, not the punctuation around it.
+      const said = String(text).replace(/[*_`#]/g, '').slice(0, 1200);
+      const u = new SpeechSynthesisUtterance(said);
+      const v = this.pick();
+      if (v) { u.voice = v; u.lang = v.lang; }
+      u.rate = 1.04; u.pitch = 0.92;
+      u.onstart = () => { speaking = true; updateTitle(); };
+      u.onend = u.onerror = () => { speaking = false; updateTitle(); };
+      speechSynthesis.speak(u);
+    } catch { /* a refused utterance must never cost the written reply */ }
+  },
+
+  hush() {
+    try { speechSynthesis.cancel(); } catch {}
+    speaking = false; updateTitle();
+  },
+
+  start() {
+    if (!this.canHear || this.listening) return false;
+    const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const r = new Rec();
+    r.lang = 'en-GB'; r.continuous = false; r.interimResults = false;
+    r.maxAlternatives = 1;
+    r.onresult = (e) => {
+      const said = (e.results[0][0].transcript || '').trim();
+      if (said) sendText(said);
+    };
+    r.onerror = (e) => {
+      // A refused microphone is the common one and deserves its own words.
+      toast(e.error === 'not-allowed'
+        ? 'Microphone blocked — allow it for this page and try again'
+        : 'Could not hear that (' + e.error + ')', 'err');
+    };
+    r.onend = () => { this.listening = false; this.rec = null; paintVoice(); };
+    try { r.start(); } catch { return false; }
+    this.rec = r; this.listening = true; paintVoice();
+    return true;
+  },
+
+  stopHearing() {
+    if (this.rec) { try { this.rec.stop(); } catch {} }
+    this.listening = false; this.rec = null; paintVoice();
+  },
+};
+
+// Keep the two mic buttons telling the truth about what is happening.
+function paintVoice() {
+  if (voiceAlive) return;             // the daemon paints these itself
+  const on = Voice.listening;
+  if (typeof pausebtn !== 'undefined' && pausebtn) {
+    pausebtn.classList.toggle('paused', !on);
+    pausebtn.textContent = on ? '\u25c9 LISTENING' : '\u25c9 MIC';
+  }
+  const hud = document.getElementById('hud-mic');
+  if (hud) hud.textContent = on ? '\u25cf LISTENING' : '\u25cf MIC';
+  if (!connected && statusText) {
+    statusText.textContent = on ? 'Listening\u2026' : 'Text only \u2014 type below';
+  }
+}
+
 async function sendViaBridge(text) {
   const now = Date.now() / 1000;
   appendFeedMsg({ role: 'user', text, t: now });
@@ -2633,6 +2733,7 @@ async function sendViaBridge(text) {
     removeThinking();
     appendFeedMsg({ role: 'jarvis', text: said, t: Date.now() / 1000 });
     feedEl.scrollTop = feedEl.scrollHeight;
+    Voice.speak(said);
   } catch (err) {
     removeThinking();
     // The turn did not happen, so it must not stay in the history or every
@@ -2750,6 +2851,16 @@ typebox.focus();
 
 // Mic pause: freezes listening so ambient talk is ignored.
 async function togglePause() {
+  if (!voiceAlive) {
+    // Nothing to pause: there is no daemon holding the microphone. The
+    // button starts and stops the browser's own recogniser instead.
+    if (!Voice.canHear) {
+      toast('This browser cannot listen — Edge or Chrome can', 'err');
+      return;
+    }
+    if (Voice.listening) Voice.stopHearing(); else Voice.start();
+    return;
+  }
   try {
     const r = await fetch('http://127.0.0.1:8123/pause', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2767,6 +2878,12 @@ pausebtn.addEventListener('click', togglePause);
 
 // Stop button: abort current speech + drop queued sentences.
 async function doStop() {
+  if (!voiceAlive) {
+    Voice.hush();
+    Voice.stopHearing();
+    toast('Stopped', 'ok');
+    return;
+  }
   try {
     const r = await fetch('http://127.0.0.1:8123/stop', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
@@ -6870,6 +6987,33 @@ document.getElementById('hud-bz-btn').addEventListener('click', async () => {
 <script>
 // Registering the worker is what completes the install criteria. It caches
 // nothing (see sw.js), so this cannot serve a stale HUD after an update.
+// Chromium fires this when the page qualifies to be installed, and lets the
+// page defer it. An installed window never fires it, so the banner cannot
+// appear once the job is done.
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  const b = document.getElementById('banner-install');
+  if (b) b.classList.add('show');
+});
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  const b = document.getElementById('banner-install');
+  if (b) b.classList.remove('show');
+  toast('Installed. It is in your Start menu now.', 'ok');
+});
+document.querySelector('#banner-install .install')?.addEventListener('click', async () => {
+  if (!installPrompt) {
+    toast('Your browser did not offer an install here', 'err');
+    return;
+  }
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  document.getElementById('banner-install')?.classList.remove('show');
+});
+
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {

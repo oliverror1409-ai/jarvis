@@ -69,11 +69,14 @@ ordinary tab instead, and if no Chromium is installed it falls back to one.
 
 ### Installing it properly
 
-In the Jarvis window, open the **...** menu and choose **Install Jarvis**
-(Edge calls it *Apps -> Install this site as an app*; Chrome shows an install
-icon in the address bar). It then behaves like any other installed program: a
-Start menu entry, its own icon, pinnable to the taskbar, and no browser
-furniture anywhere.
+A cyan bar across the top of Jarvis offers **INSTALL**. Press it and it
+becomes an ordinary installed program: a Start menu entry, its own icon,
+pinnable to the taskbar, no browser furniture.
+
+The bar only appears where the browser can actually offer it, which is why
+`start.py` opens a tab rather than a bare window — a bare window has no
+toolbar and no menu, so nothing can offer an install from inside one. Once
+installed, launch it from the Start menu, or use `python start.py --window`.
 
 It still needs the bridge running underneath -- it is your machine doing the
 work, not a website -- so start it with the shortcut below or `python
@@ -92,12 +95,21 @@ the bridge starts and the window opens; the small console window it leaves
 behind is how you stop it. `-Remove` takes the shortcut away again, and
 `-Port 8200` points it somewhere else.
 
-**Without the voice daemon this is a text assistant**, and the HUD says so in
-the bar across the top. Speech in (Whisper), speech out (Kokoro), the wake
-word and the desktop tools all belong to a separate component that is not in
-this repository yet. Everything you see in the HUD that reaches for it —
-the MIC button, dictation, *Launch*, the file browser — will not do anything
-until it is installed. The conversation itself does not need it.
+### Talking to it
+
+**It speaks its replies**, using the voice built into your browser. That runs
+on your machine, offline, and costs nothing. Turn it off with STOP.
+
+**Press MIC and it listens.** One press, one thing said; it types what it
+heard and sends it. Worth knowing where the audio goes: Edge and Chrome do
+speech recognition on *their* servers, not on your machine — so unlike
+everything else here, speaking to it is not private. Typing always is, and
+the replies are spoken locally either way.
+
+The wake word, offline speech recognition (Whisper), the Kokoro voice and the
+desktop tools belong to a separate voice daemon that is not in this
+repository. Without it, *Launch*, dictation and the file browser do nothing.
+The conversation, and the voice described above, do not need it.
 
 Things worth knowing:
 
