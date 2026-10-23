@@ -233,19 +233,51 @@ def make_shortcut(port: int, remove: bool = False) -> int:
     return 0
 
 
+def health_of(port: int) -> dict | None:
+    """What the bridge on this port says about itself, or None."""
+    try:
+        import json as _json
+        import urllib.request
+        with urllib.request.urlopen(
+                "http://127.0.0.1:%d/health" % port, timeout=2) as r:
+            if r.status != 200:
+                return None
+            return _json.loads(r.read() or b"{}")
+    except Exception:  # noqa: BLE001 -- anything at all means "not ours"
+        return None
+
+
 def running_on(port: int) -> bool:
     """Is a Jarvis bridge already answering here?
 
     Asks rather than assumes: something else may hold the port, and telling
     somebody Jarvis is running when it is not wastes their afternoon.
     """
+    return health_of(port) is not None
+
+
+def disk_fingerprint() -> str:
+    """The same hash the bridge computes, over the file as it is now."""
     try:
-        import urllib.request
-        with urllib.request.urlopen(
-                "http://127.0.0.1:%d/health" % port, timeout=2) as r:
-            return r.status == 200
-    except Exception:  # noqa: BLE001 -- anything at all means "not ours"
+        import hashlib
+        return hashlib.sha256(BRIDGE.read_bytes()).hexdigest()[:16]
+    except OSError:
+        return "unknown"
+
+
+def is_stale(port: int) -> bool:
+    """Is the bridge on this port running code we have since changed?
+
+    An older bridge reports no fingerprint at all; that is stale too, since
+    it predates this check.
+    """
+    info = health_of(port)
+    if info is None:
         return False
+    running = info.get("code")
+    if not running:
+        return True
+    return running != disk_fingerprint()
 
 
 def ask_it_to_stop(port: int) -> bool:
@@ -287,10 +319,28 @@ def main() -> int:
                     help="put a Jarvis shortcut on the desktop")
     ap.add_argument("--remove-shortcut", action="store_true",
                     help="take that shortcut away again")
+    ap.add_argument("--restart", action="store_true",
+                    help="stop a running Jarvis first, then start this one")
     args = ap.parse_args()
 
     if args.shortcut or args.remove_shortcut:
         return make_shortcut(args.port, remove=args.remove_shortcut)
+
+    # A pull changes the files; it cannot change a process already running.
+    # Restarting here is what the person asked for by running this at all.
+    if (args.restart or is_stale(args.port)) and running_on(args.port):
+        if is_stale(args.port) and not args.restart:
+            tell("A different version of Jarvis is already running. "
+                 "Restarting it so your update takes effect.")
+        ask_it_to_stop(args.port)
+        for _ in range(20):
+            if not running_on(args.port):
+                break
+            time.sleep(0.5)
+        else:
+            tell("The running Jarvis would not stop. End pythonw.exe in Task "
+                 "Manager, then try again.", bad=True)
+            return 1
 
     if args.stop:
         if not running_on(args.port):
@@ -349,7 +399,8 @@ def main() -> int:
         # an error -- the thing he wanted is already running.
         if running_on(args.port):
             url = "http://127.0.0.1:%d/ui" % args.port
-            print("Jarvis is already running. Opening it.")
+            # Stale copies were restarted above, so this one is current.
+            print("Jarvis is already running, and up to date. Opening it.")
             if not args.no_browser:
                 if not (args.window and open_as_app(url)):
                     webbrowser.open(url)

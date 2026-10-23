@@ -239,6 +239,11 @@ is not running. `python start.py`, then check
 yourself with `python -m pip install -r requirements.txt`. On Linux, a distro
 Python may need `python3 -m venv .venv` first.
 
+**I pulled an update and nothing changed.** Jarvis keeps running in the
+background, so changing the files on disk does not change the copy already
+serving. `python start.py` now notices and restarts it for you; `python
+start.py --restart` forces it, and `--stop` then starting again always works.
+
 **It runs from the command prompt, but the desktop shortcut does nothing.**
 Almost always two different Pythons: `pip install` went to one and the
 shortcut launched another, which cannot import the packages and exits at

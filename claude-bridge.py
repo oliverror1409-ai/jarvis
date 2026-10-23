@@ -1729,9 +1729,29 @@ async def shutdown(request: Request) -> dict:
                                "stop itself from; close its window instead")
 
 
+def _code_fingerprint() -> str:
+    """A short hash of this file as it was when the process started.
+
+    Not a version number, because there is nothing to bump and nobody to
+    remember to: the question is only ever "is what is running the same as
+    what is on disk", and a hash answers that exactly.
+    """
+    try:
+        import hashlib
+        return hashlib.sha256(
+            Path(__file__).read_bytes()).hexdigest()[:16]
+    except OSError:
+        return "unknown"
+
+
+CODE_FINGERPRINT = _code_fingerprint()
+
+
 @app.get("/health")
 def health() -> dict:
     return {
+        # So a launcher can tell a stale running copy from a current one.
+        "code": CODE_FINGERPRINT,
         "status": "ok",
         "uptime_s": round(time.time() - BOOT_TS, 1),
         "requests": REQUEST_COUNT["n"],
